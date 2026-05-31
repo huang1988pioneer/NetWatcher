@@ -201,6 +201,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public string ProcessSectionActionText => IsProcessSectionExpanded ? "收合" : "展開";
 
+    public string ProcessDataSourceText => OperatingSystem.IsWindows()
+        ? "資料來源：Windows ETW 網路事件，約每秒更新一次"
+        : "單一程式流量僅支援 Windows ETW；macOS 版顯示總流量監控";
+
     public bool IsWideLayout
     {
         get => _isWideLayout;

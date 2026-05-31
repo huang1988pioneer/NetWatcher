@@ -1,13 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>false</UseWPF>
     <UseWindowsForms>false</UseWindowsForms>
     <AssemblyName>NetWatcher.App</AssemblyName>
     <RootNamespace>NetWatcher.App</RootNamespace>
+    <Version>1.1.0</Version>
+    <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == '' Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
