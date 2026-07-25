@@ -7,7 +7,7 @@ Windows builds also include per-process traffic through ETW network events.
 
 Latest release:
 
-- [NetWatcher v1.1.0](https://github.com/goldshoot0720/mynetwatcher/releases/tag/v1.1.0)
+- [NetWatcher v1.1.0](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.1.0)
 
 Release assets:
 
