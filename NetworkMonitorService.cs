@@ -311,6 +311,12 @@ public sealed class NetworkMonitorService
         return "ETW 已啟用，目前沒有偵測到單一程式流量。";
     }
 
+    public bool TryRestartEtw() => _processMonitorService.TryRestart();
+
+    public string EtwStatus => _processMonitorService.StartupStatus;
+
+    public bool IsEtwRunning => _processMonitorService.IsRunning;
+
     public void Dispose()
     {
         foreach (var pair in _perfCounters.Values)

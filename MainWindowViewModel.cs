@@ -646,7 +646,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         get
         {
             var version = typeof(MainWindowViewModel).Assembly.GetName().Version;
-            return version is null ? "v1.2.3" : $"v{version.Major}.{version.Minor}.{version.Build}";
+            return version is null ? "v1.2.4" : $"v{version.Major}.{version.Minor}.{version.Build}";
         }
     }
 
@@ -1031,6 +1031,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         LimitEngineStatusText = NeedsAdminForLimits
             ? "已清除本機記錄。若先前以系統管理員套用過 QoS，請再以系統管理員清除。"
             : "已清除所有 NetWatcher 限速原則。";
+    }
+
+    public void RetryEtwMonitoring()
+    {
+        if (_networkMonitorService.TryRestartEtw())
+        {
+            ProcessStatusText = _networkMonitorService.EtwStatus;
+            LimitEngineStatusText = "ETW 已重新啟動。";
+        }
+        else
+        {
+            ProcessStatusText = _networkMonitorService.EtwStatus;
+            LimitEngineStatusText = _networkMonitorService.EtwStatus;
+        }
     }
 
     public bool TryRestartAsAdministrator()

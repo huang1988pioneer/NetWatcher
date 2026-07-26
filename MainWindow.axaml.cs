@@ -49,6 +49,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void RetryEtwButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.RetryEtwMonitoring();
+        }
+    }
+
     private void SettingsNavButton_OnClick(object? sender, RoutedEventArgs e)
     {
         NavigateTo(AppNavPage.Settings);
