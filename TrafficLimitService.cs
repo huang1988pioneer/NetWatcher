@@ -1,12 +1,15 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace NetWatcher.App;
 
 /// <summary>
-/// Traffic shaping helpers inspired by NetBalancer / Eltrafico.
-/// Uses Windows Policy-based QoS for outbound (upload) throttling and Firewall for Block.
-/// True inbound (download) throttling requires a kernel filter driver (not available here).
+/// Traffic control:
+/// 1) Windows Policy-based QoS for outbound (upload) when elevated.
+/// 2) ProcessThrottleEngine soft limit (suspend duty-cycle) for download+upload (works without driver).
+/// 3) Firewall block for Block priority.
+/// True smooth per-flow shaping still needs a kernel filter driver (NetLimiter etc.).
 /// </summary>
 public sealed class TrafficLimitService : IDisposable
 {
@@ -17,11 +20,14 @@ public sealed class TrafficLimitService : IDisposable
     private readonly object _sync = new();
     private readonly HashSet<string> _activePolicies = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _activeFirewallRules = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ProcessThrottleEngine _softThrottle = new();
     private bool _disposed;
 
     public bool IsWindowsSupported => OperatingSystem.IsWindows();
 
     public bool IsElevated => AdminElevation.IsElevated();
+
+    public ProcessThrottleEngine SoftThrottle => _softThrottle;
 
     public string CapabilityText
     {
@@ -29,15 +35,11 @@ public sealed class TrafficLimitService : IDisposable
         {
             if (!IsWindowsSupported)
             {
-                return "限速/優先級：目前僅 Windows 可實際套用；其他平台僅保留設定。";
+                return "限速僅 Windows 可實際套用。";
             }
 
-            if (!IsElevated)
-            {
-                return "限速需要系統管理員權限。目前未以系統管理員執行，無法套用 QoS / 防火牆規則。請按「以系統管理員重新啟動」。";
-            }
-
-            return "已取得系統管理員權限。上傳限速：Windows QoS（有效）· 下載限速：Windows 無法可靠限制入站，僅記錄設定 · Block：防火牆阻擋。";
+            var admin = IsElevated ? "已提權" : "未提權（QoS 上傳不可用）";
+            return $"{admin} · 下載/上傳軟限速：暫停行程法（可實際降速）· 上傳 QoS：需管理員 · 下載 QoS：Windows 不支援入站。";
         }
     }
 
@@ -54,21 +56,24 @@ public sealed class TrafficLimitService : IDisposable
             return LimitApplyResult.Fail("目前平台不支援實際限速。");
         }
 
-        if (!IsElevated && priority is not TrafficPriority.Normal and not TrafficPriority.High)
-        {
-            return LimitApplyResult.Fail("需要系統管理員權限才能限速。請在設定頁按「以系統管理員重新啟動」。");
-        }
-
         var messages = new List<string>();
         var anyFail = false;
 
-        // Always clear previous block first unless re-applying Block.
+        // Soft throttle always available (same user processes).
+        ConfigureSoftThrottle(processName, priority, downloadLimitKbps, uploadLimitKbps);
+
+        if (!IsElevated && priority is TrafficPriority.Block)
+        {
+            return LimitApplyResult.Fail("Block 需要系統管理員權限。軟限速若已設定仍會嘗試生效。");
+        }
+
+        // Clear previous block first unless re-applying Block.
         if (priority != TrafficPriority.Block)
         {
             var unblock = await SetBlockAsync(processName, executablePath, enable: false, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(unblock.Message) && !unblock.Success)
+            if (!unblock.Success && !string.IsNullOrWhiteSpace(unblock.Message))
             {
-                messages.Add(unblock.Message);
+                // ignore non-fatal
             }
         }
 
@@ -77,30 +82,35 @@ public sealed class TrafficLimitService : IDisposable
             case TrafficPriority.High:
             case TrafficPriority.Normal:
             {
-                var remove = await RemoveLimitAsync(processName, "UL", cancellationToken);
-                messages.Add(priority == TrafficPriority.High
-                    ? "優先級 High：不限速"
-                    : "已解除限速（Normal）");
-                if (!remove.Success)
+                _softThrottle.Clear(processName);
+                if (IsElevated)
                 {
-                    anyFail = true;
-                    messages.Add(remove.Message);
+                    await RemoveLimitAsync(processName, "UL", cancellationToken);
+                    await RemoveLimitAsync(processName, "UL2", cancellationToken);
                 }
 
+                messages.Add(priority == TrafficPriority.High ? "High：不限速" : "已解除限速");
                 break;
             }
 
             case TrafficPriority.Low:
             {
                 var lowRate = uploadLimitKbps > 0 ? uploadLimitKbps : LowPriorityUploadKbps;
-                var low = await ApplyUploadLimitAsync(processName, lowRate, cancellationToken);
-                messages.Add(low.Message);
-                anyFail |= !low.Success;
-
+                messages.Add($"軟限速：上傳≤{lowRate / 1024d:0.##} MB/s");
                 if (downloadLimitKbps > 0)
                 {
-                    var dl = await ApplyDownloadLimitAsync(processName, downloadLimitKbps, cancellationToken);
-                    messages.Add(dl.Message);
+                    messages.Add($"下載≤{downloadLimitKbps / 1024d:0.##} MB/s");
+                }
+
+                if (IsElevated)
+                {
+                    var qos = await ApplyUploadLimitAsync(processName, lowRate, cancellationToken);
+                    messages.Add(qos.Success ? "QoS上傳已套用" : "QoS失敗:" + Short(qos.Message));
+                    anyFail |= !qos.Success;
+                }
+                else
+                {
+                    messages.Add("未提權：僅軟限速（無 QoS）");
                 }
 
                 break;
@@ -108,27 +118,42 @@ public sealed class TrafficLimitService : IDisposable
 
             case TrafficPriority.Limit:
             {
-                if (uploadLimitKbps > 0)
+                if (uploadLimitKbps <= 0 && downloadLimitKbps <= 0)
                 {
-                    var ul = await ApplyUploadLimitAsync(processName, uploadLimitKbps, cancellationToken);
-                    messages.Add(ul.Message);
-                    anyFail |= !ul.Success;
-                }
-                else
-                {
-                    await RemoveLimitAsync(processName, "UL", cancellationToken);
-                    if (downloadLimitKbps <= 0)
-                    {
-                        messages.Add("請選擇上傳或下載限制值");
-                        anyFail = true;
-                    }
+                    _softThrottle.Clear(processName);
+                    return LimitApplyResult.Fail("請選擇下載或上傳限制值");
                 }
 
                 if (downloadLimitKbps > 0)
                 {
-                    var dl = await ApplyDownloadLimitAsync(processName, downloadLimitKbps, cancellationToken);
-                    messages.Add(dl.Message);
-                    // Download cannot be enforced — not counted as hard fail if upload succeeded.
+                    messages.Add($"軟限速下載≤{downloadLimitKbps / 1024d:0.##} MB/s（暫停行程）");
+                }
+
+                if (uploadLimitKbps > 0)
+                {
+                    messages.Add($"軟限速上傳≤{uploadLimitKbps / 1024d:0.##} MB/s");
+                    if (IsElevated)
+                    {
+                        var qos = await ApplyUploadLimitAsync(processName, uploadLimitKbps, cancellationToken);
+                        messages.Add(qos.Success
+                            ? $"QoS上傳已驗證 {uploadLimitKbps / 1024d:0.##} MB/s"
+                            : "QoS失敗:" + Short(qos.Message));
+                        anyFail |= !qos.Success;
+                    }
+                    else
+                    {
+                        messages.Add("未提權：上傳僅軟限速");
+                    }
+                }
+                else if (IsElevated)
+                {
+                    await RemoveLimitAsync(processName, "UL", cancellationToken);
+                    await RemoveLimitAsync(processName, "UL2", cancellationToken);
+                }
+
+                if (downloadLimitKbps > 0 && uploadLimitKbps <= 0)
+                {
+                    messages.Add("下載靠軟限速（非網卡驅動）");
                 }
 
                 break;
@@ -136,7 +161,13 @@ public sealed class TrafficLimitService : IDisposable
 
             case TrafficPriority.Block:
             {
-                await RemoveLimitAsync(processName, "UL", cancellationToken);
+                _softThrottle.Clear(processName);
+                if (IsElevated)
+                {
+                    await RemoveLimitAsync(processName, "UL", cancellationToken);
+                    await RemoveLimitAsync(processName, "UL2", cancellationToken);
+                }
+
                 var block = await SetBlockAsync(processName, executablePath, enable: true, cancellationToken);
                 messages.Add(block.Message);
                 anyFail |= !block.Success;
@@ -144,11 +175,44 @@ public sealed class TrafficLimitService : IDisposable
             }
         }
 
-        var text = string.Join(" · ", messages.Where(m => !string.IsNullOrWhiteSpace(m)).TakeLast(3));
+        if (priority is TrafficPriority.Limit or TrafficPriority.Low)
+        {
+            messages.Add(_softThrottle.LastActionText);
+        }
+
+        var text = string.Join(" · ", messages.Where(m => !string.IsNullOrWhiteSpace(m)).Take(4));
         return anyFail ? LimitApplyResult.Fail(text) : LimitApplyResult.Ok(text);
     }
 
-    public async Task<LimitApplyResult> ApplyUploadLimitAsync(string processName, double limitKbps, CancellationToken cancellationToken = default)
+    private void ConfigureSoftThrottle(
+        string processName,
+        TrafficPriority priority,
+        double downloadLimitKbps,
+        double uploadLimitKbps)
+    {
+        if (priority is TrafficPriority.Normal or TrafficPriority.High or TrafficPriority.Block)
+        {
+            _softThrottle.Clear(processName);
+            return;
+        }
+
+        // KB/s → bytes/s
+        var dlBps = downloadLimitKbps > 0 ? downloadLimitKbps * 1024d : 0;
+        var ulBps = uploadLimitKbps > 0 ? uploadLimitKbps * 1024d : 0;
+
+        // Low priority always has an upload soft cap.
+        if (priority == TrafficPriority.Low && ulBps <= 0)
+        {
+            ulBps = LowPriorityUploadKbps * 1024d;
+        }
+
+        _softThrottle.SetLimit(processName, dlBps, ulBps, enabled: dlBps > 0 || ulBps > 0);
+    }
+
+    public async Task<LimitApplyResult> ApplyUploadLimitAsync(
+        string processName,
+        double limitKbps,
+        CancellationToken cancellationToken = default)
     {
         if (!IsWindowsSupported)
         {
@@ -157,26 +221,41 @@ public sealed class TrafficLimitService : IDisposable
 
         if (!IsElevated)
         {
-            return LimitApplyResult.Fail("上傳限速失敗：需要系統管理員權限。");
+            return LimitApplyResult.Fail("上傳 QoS 需要系統管理員權限。");
         }
 
         if (limitKbps <= 0)
         {
-            return await RemoveLimitAsync(processName, "UL", cancellationToken);
+            await RemoveLimitAsync(processName, "UL", cancellationToken);
+            await RemoveLimitAsync(processName, "UL2", cancellationToken);
+            return LimitApplyResult.Ok("已移除上傳 QoS。");
         }
 
         var appMatch = ToAppMatchName(processName);
         var policyName = BuildPolicyName(processName, "UL");
-        // limitKbps is kilobytes/sec → bits/sec = KB/s * 1024 * 8
-        var bitsPerSecond = (ulong)Math.Max(8, Math.Round(limitKbps * 1024d * 8d));
+        // KB/s → bits/s
+        var bitsPerSecond = (ulong)Math.Max(8000, Math.Round(limitKbps * 1024d * 8d));
 
-        await RemovePolicyInternalAsync(policyName, cancellationToken);
+        await RemoveLimitAsync(processName, "UL", cancellationToken);
+        await RemoveLimitAsync(processName, "UL2", cancellationToken);
 
-        // PolicyStore ActiveStore is session-scoped and applies immediately when elevated.
+        // ActiveStore (immediate) + PersistentStore (survives until removed).
+        // IPProtocol Both + all network profiles.
         var script =
             "$ErrorActionPreference = 'Stop'; " +
-            $"New-NetQosPolicy -Name '{Escape(policyName)}' -AppPathNameMatchCondition '{Escape(appMatch)}' " +
-            $"-ThrottleRateActionBitsPerSecond {bitsPerSecond} -NetworkProfile All -PolicyStore ActiveStore | Out-Null";
+            $"$name = '{Escape(policyName)}'; " +
+            $"$app = '{Escape(appMatch)}'; " +
+            $"$bps = [uint64]{bitsPerSecond}; " +
+            "foreach ($store in @('ActiveStore','PersistentStore')) { " +
+            "  try { Remove-NetQosPolicy -Name $name -PolicyStore $store -Confirm:$false -ErrorAction SilentlyContinue } catch {} " +
+            "  New-NetQosPolicy -Name $name -AppPathNameMatchCondition $app " +
+            "    -IPProtocolMatchCondition Both -NetworkProfile All " +
+            "    -ThrottleRateActionBitsPerSecond $bps -PolicyStore $store | Out-Null " +
+            "} " +
+            // Verify ActiveStore policy exists and report throttle.
+            "$p = Get-NetQosPolicy -Name $name -PolicyStore ActiveStore -ErrorAction Stop; " +
+            "if (-not $p) { throw 'policy missing after create' }; " +
+            "'OK:' + $p.Name + ' app=' + $p.AppPathNameMatchCondition + ' bps=' + $bps";
 
         var result = await RunPowerShellAsync(script, cancellationToken);
         if (result.Success)
@@ -187,44 +266,58 @@ public sealed class TrafficLimitService : IDisposable
             }
 
             var mbps = limitKbps / 1024d;
-            return LimitApplyResult.Ok(
-                $"已套用上傳限速 {mbps:0.##} MB/s（{limitKbps:0.##} KB/s）→ {appMatch}");
+            return LimitApplyResult.Ok($"QoS上傳 {mbps:0.##} MB/s → {appMatch} 已建立並驗證");
         }
 
-        var err = string.IsNullOrWhiteSpace(result.Error)
-            ? "套用上傳限速失敗（可能需要系統管理員權限）。"
-            : result.Error;
+        // Fallback: ActiveStore only (some SKUs restrict PersistentStore).
+        var fallback =
+            "$ErrorActionPreference = 'Stop'; " +
+            $"$name = '{Escape(policyName)}'; " +
+            $"Remove-NetQosPolicy -Name $name -PolicyStore ActiveStore -Confirm:$false -ErrorAction SilentlyContinue; " +
+            $"New-NetQosPolicy -Name $name -AppPathNameMatchCondition '{Escape(appMatch)}' " +
+            $"-NetworkProfile All -ThrottleRateActionBitsPerSecond {bitsPerSecond} -PolicyStore ActiveStore | Out-Null; " +
+            "Get-NetQosPolicy -Name $name -PolicyStore ActiveStore | Out-Null; 'OK-fallback'";
 
-        if (err.Contains("拒絕", StringComparison.OrdinalIgnoreCase) ||
-            err.Contains("Access", StringComparison.OrdinalIgnoreCase) ||
-            err.Contains("denied", StringComparison.OrdinalIgnoreCase) ||
-            err.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase))
+        var fb = await RunPowerShellAsync(fallback, cancellationToken);
+        if (fb.Success)
         {
-            return LimitApplyResult.Fail("上傳限速失敗：權限不足，請以系統管理員重新啟動。");
+            lock (_sync)
+            {
+                _activePolicies.Add(policyName);
+            }
+
+            return LimitApplyResult.Ok($"QoS上傳已套用(ActiveStore) → {appMatch}");
         }
 
-        return LimitApplyResult.Fail(err);
+        var err = string.IsNullOrWhiteSpace(result.Error) ? fb.Error : result.Error;
+        if (ContainsAccessDenied(err))
+        {
+            return LimitApplyResult.Fail("上傳 QoS 權限不足，請以系統管理員重新啟動。");
+        }
+
+        return LimitApplyResult.Fail(string.IsNullOrWhiteSpace(err) ? "上傳 QoS 套用失敗" : Short(err));
     }
 
-    public Task<LimitApplyResult> ApplyDownloadLimitAsync(string processName, double limitKbps, CancellationToken cancellationToken = default)
+    public Task<LimitApplyResult> ApplyDownloadLimitAsync(
+        string processName,
+        double limitKbps,
+        CancellationToken cancellationToken = default)
     {
+        // Download hard-limit is not available via Windows QoS; soft throttle handles it.
         if (limitKbps <= 0)
         {
             return Task.FromResult(LimitApplyResult.Ok("已關閉下載限速設定。"));
         }
 
-        if (!IsWindowsSupported)
-        {
-            return Task.FromResult(LimitApplyResult.Fail("目前平台不支援實際限速。"));
-        }
-
         var mbps = limitKbps / 1024d;
-        // Windows Policy-based QoS throttle only affects outbound traffic.
         return Task.FromResult(LimitApplyResult.Ok(
-            $"下載 {mbps:0.##} MB/s 已記錄（Windows QoS 無法可靠限制下載/入站；請改限上傳或使用含驅動的工具）"));
+            $"下載 {mbps:0.##} MB/s 由軟限速執行（暫停行程），非網卡硬限速"));
     }
 
-    public Task<LimitApplyResult> RemoveLimitAsync(string processName, string direction, CancellationToken cancellationToken = default)
+    public Task<LimitApplyResult> RemoveLimitAsync(
+        string processName,
+        string direction,
+        CancellationToken cancellationToken = default)
     {
         var policyName = BuildPolicyName(processName, direction);
         return RemovePolicyInternalAsync(policyName, cancellationToken);
@@ -232,6 +325,8 @@ public sealed class TrafficLimitService : IDisposable
 
     public async Task RemoveAllAsync(CancellationToken cancellationToken = default)
     {
+        _softThrottle.ClearAll();
+
         List<string> policies;
         List<string> firewallRules;
         lock (_sync)
@@ -250,12 +345,14 @@ public sealed class TrafficLimitService : IDisposable
             await RemoveFirewallRuleAsync(rule, cancellationToken);
         }
 
-        if (IsWindowsSupported)
+        if (IsWindowsSupported && IsElevated)
         {
             var qosCleanup =
                 "$ErrorActionPreference = 'SilentlyContinue'; " +
                 $"Get-NetQosPolicy -PolicyStore ActiveStore | Where-Object {{ $_.Name -like '{PolicyPrefix}*' }} | " +
-                "ForEach-Object { Remove-NetQosPolicy -Name $_.Name -PolicyStore ActiveStore -Confirm:$false }";
+                "ForEach-Object { Remove-NetQosPolicy -Name $_.Name -PolicyStore ActiveStore -Confirm:$false }; " +
+                $"Get-NetQosPolicy -PolicyStore PersistentStore -ErrorAction SilentlyContinue | Where-Object {{ $_.Name -like '{PolicyPrefix}*' }} | " +
+                "ForEach-Object { Remove-NetQosPolicy -Name $_.Name -PolicyStore PersistentStore -Confirm:$false }";
             await RunPowerShellAsync(qosCleanup, cancellationToken);
 
             var fwCleanup =
@@ -339,7 +436,7 @@ public sealed class TrafficLimitService : IDisposable
         var err = string.Join(" ", new[] { outResult.Error, inResult.Error }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return LimitApplyResult.Fail(string.IsNullOrWhiteSpace(err)
             ? "Block 失敗（需要系統管理員權限）。"
-            : err);
+            : Short(err));
     }
 
     private async Task RemoveFirewallRuleAsync(string ruleName, CancellationToken cancellationToken)
@@ -364,7 +461,9 @@ public sealed class TrafficLimitService : IDisposable
         }
     }
 
-    private async Task<LimitApplyResult> RemovePolicyInternalAsync(string policyName, CancellationToken cancellationToken)
+    private async Task<LimitApplyResult> RemovePolicyInternalAsync(
+        string policyName,
+        CancellationToken cancellationToken)
     {
         if (!IsWindowsSupported)
         {
@@ -379,8 +478,11 @@ public sealed class TrafficLimitService : IDisposable
         var escaped = Escape(policyName);
         var script =
             "$ErrorActionPreference = 'SilentlyContinue'; " +
-            $"if (Get-NetQosPolicy -Name '{escaped}' -PolicyStore ActiveStore -ErrorAction SilentlyContinue) " +
-            $"{{ Remove-NetQosPolicy -Name '{escaped}' -PolicyStore ActiveStore -Confirm:$false }}";
+            $"foreach ($store in @('ActiveStore','PersistentStore')) {{ " +
+            $"  if (Get-NetQosPolicy -Name '{escaped}' -PolicyStore $store -ErrorAction SilentlyContinue) {{ " +
+            $"    Remove-NetQosPolicy -Name '{escaped}' -PolicyStore $store -Confirm:$false " +
+            "  } " +
+            "}";
 
         var result = await RunPowerShellAsync(script, cancellationToken);
         lock (_sync)
@@ -390,7 +492,7 @@ public sealed class TrafficLimitService : IDisposable
 
         return result.Success
             ? LimitApplyResult.Ok("已移除限速原則。")
-            : LimitApplyResult.Fail(result.Error);
+            : LimitApplyResult.Fail(Short(result.Error));
     }
 
     private static string ResolveProgramPath(string processName, string? executablePath)
@@ -446,23 +548,17 @@ public sealed class TrafficLimitService : IDisposable
 
     private static string BuildFirewallRuleName(string processName)
     {
-        var safe = new string(processName
-            .Where(ch => char.IsLetterOrDigit(ch) || ch is '_' or '-' or '.')
-            .ToArray());
-        if (string.IsNullOrWhiteSpace(safe))
-        {
-            safe = "app";
-        }
-
-        if (safe.Length > 40)
-        {
-            safe = safe[..40];
-        }
-
+        var safe = Sanitize(processName, 40);
         return $"{FirewallPrefix}{safe}";
     }
 
     private static string BuildPolicyName(string processName, string direction)
+    {
+        var safe = Sanitize(processName, 40);
+        return $"{PolicyPrefix}{direction}_{safe}";
+    }
+
+    private static string Sanitize(string processName, int maxLen)
     {
         var safe = new string(processName
             .Where(ch => char.IsLetterOrDigit(ch) || ch is '_' or '-' or '.')
@@ -472,12 +568,12 @@ public sealed class TrafficLimitService : IDisposable
             safe = "app";
         }
 
-        if (safe.Length > 40)
+        if (safe.Length > maxLen)
         {
-            safe = safe[..40];
+            safe = safe[..maxLen];
         }
 
-        return $"{PolicyPrefix}{direction}_{safe}";
+        return safe;
     }
 
     private static string ToAppMatchName(string processName)
@@ -488,12 +584,38 @@ public sealed class TrafficLimitService : IDisposable
             return name;
         }
 
-        return $"{name}.exe";
+        // Description may be a full path — reduce to file name for QoS match.
+        if (name.Contains('\\') || name.Contains('/'))
+        {
+            name = Path.GetFileName(name);
+        }
+
+        return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name : $"{name}.exe";
     }
 
     private static string Escape(string value) => value.Replace("'", "''");
 
-    private static async Task<(bool Success, string Error)> RunPowerShellAsync(string script, CancellationToken cancellationToken)
+    private static bool ContainsAccessDenied(string? err) =>
+        !string.IsNullOrWhiteSpace(err) &&
+        (err.Contains("拒絕", StringComparison.OrdinalIgnoreCase) ||
+         err.Contains("Access", StringComparison.OrdinalIgnoreCase) ||
+         err.Contains("denied", StringComparison.OrdinalIgnoreCase) ||
+         err.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase));
+
+    private static string Short(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var oneLine = Regex.Replace(text, @"\s+", " ").Trim();
+        return oneLine.Length <= 140 ? oneLine : oneLine[..140] + "…";
+    }
+
+    private static async Task<(bool Success, string Error)> RunPowerShellAsync(
+        string script,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -522,7 +644,7 @@ public sealed class TrafficLimitService : IDisposable
 
             if (process.ExitCode == 0)
             {
-                return (true, string.Empty);
+                return (true, stdout?.Trim() ?? string.Empty);
             }
 
             var error = string.Join(" ", new[] { stderr, stdout }.Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
@@ -542,9 +664,15 @@ public sealed class TrafficLimitService : IDisposable
         }
 
         _disposed = true;
+        try
+        {
+            _softThrottle.Dispose();
+        }
+        catch
+        {
+            // ignore
+        }
 
-        // Avoid blocking UI shutdown with PowerShell cleanup when not elevated
-        // (common source of "hung close" / resource pressure).
         if (!IsWindowsSupported || !IsElevated)
         {
             lock (_sync)
@@ -558,12 +686,8 @@ public sealed class TrafficLimitService : IDisposable
 
         try
         {
-            // Bound cleanup so exit cannot hang forever.
             var cleanup = RemoveAllAsync();
-            if (!cleanup.Wait(TimeSpan.FromSeconds(3)))
-            {
-                // Let process exit; OS will drop ActiveStore session policies.
-            }
+            _ = cleanup.Wait(TimeSpan.FromSeconds(3));
         }
         catch
         {

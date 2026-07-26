@@ -588,9 +588,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         : "單一程式流量僅支援 Windows ETW；macOS 版顯示總流量";
 
     public string IntegratedHelpText =>
-        "上傳限速：Windows Policy-based QoS（需系統管理員，可實際生效）。" +
-        " 下載限速：Windows 無法可靠限制入站，僅記錄設定。" +
-        " 請對要限速的程式選擇「上傳限制」MB/s，並保持開關開啟。";
+        "下載/上傳限速：預設用「軟限速」（超速時短暫暫停該程式，可實際降速，無需網卡驅動）。" +
+        " 上傳另可套用 Windows QoS（需系統管理員，較平滑）。" +
+        " 受保護系統行程可能無法暫停。開關需保持開啟。";
 
     public UiThemeOption SelectedUiTheme
     {
@@ -779,7 +779,50 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         MergeProcesses(snapshot.Processes);
         ProcessStatusText = snapshot.ProcessStatusMessage;
+        ApplySoftThrottleSamples();
         ApplyFilters();
+    }
+
+    /// <summary>
+    /// Feed live rates into userspace suspend-based shaper so download limits actually bite.
+    /// </summary>
+    private void ApplySoftThrottleSamples()
+    {
+        try
+        {
+            foreach (var process in _processMap.Values)
+            {
+                if (!process.HasActiveLimit || !process.IsLimitControlEnabled)
+                {
+                    continue;
+                }
+
+                _trafficLimitService.SoftThrottle.OnSample(
+                    process.ProcessName,
+                    process.DownloadBytesPerSecond,
+                    process.UploadBytesPerSecond);
+            }
+
+            var action = _trafficLimitService.SoftThrottle.LastActionText;
+            if (!string.IsNullOrWhiteSpace(action) &&
+                !action.Contains("待命", StringComparison.Ordinal) &&
+                !action.Contains("在限速內", StringComparison.Ordinal))
+            {
+                // Surface active shaping without overwriting apply errors every tick.
+                if (string.IsNullOrWhiteSpace(LimitEngineStatusText) ||
+                    LimitEngineStatusText.Contains("軟限速", StringComparison.Ordinal) ||
+                    LimitEngineStatusText.Contains("QoS", StringComparison.Ordinal) ||
+                    LimitEngineStatusText.Contains("已套用", StringComparison.Ordinal) ||
+                    LimitEngineStatusText.Contains("限速", StringComparison.Ordinal))
+                {
+                    LimitEngineStatusText = action;
+                }
+            }
+        }
+        catch
+        {
+            // Never break UI refresh because of throttle engine.
+        }
     }
 
     private void AccumulateTraffic(double downloadBytesPerSecond, double uploadBytesPerSecond)
