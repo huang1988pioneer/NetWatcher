@@ -338,11 +338,15 @@
                           <ComboBox Grid.Column="4" Classes="ui-limit"
                                     ItemsSource="{Binding LimitOptions}"
                                     SelectedItem="{Binding SelectedDownloadLimit}"
-                                    VerticalAlignment="Center" />
+                                    VerticalAlignment="Center"
+                                    IsTextSearchEnabled="False"
+                                    MaxDropDownHeight="280" />
                           <ComboBox Grid.Column="5" Classes="ui-limit"
                                     ItemsSource="{Binding LimitOptions}"
                                     SelectedItem="{Binding SelectedUploadLimit}"
-                                    VerticalAlignment="Center" />
+                                    VerticalAlignment="Center"
+                                    IsTextSearchEnabled="False"
+                                    MaxDropDownHeight="280" />
 
                           <!-- Actions -->
                           <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -418,8 +422,8 @@
                           <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="12" Text="{Binding StatusText}" />
                           <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#60A5FA" Text="{Binding DownloadSpeedText}" />
                           <TextBlock Grid.Column="3" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#4ADE80" Text="{Binding UploadSpeedText}" />
-                          <ComboBox Grid.Column="4" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedDownloadLimit}" VerticalAlignment="Center" />
-                          <ComboBox Grid.Column="5" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedUploadLimit}" VerticalAlignment="Center" />
+                          <ComboBox Grid.Column="4" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedDownloadLimit}" VerticalAlignment="Center" IsTextSearchEnabled="False" MaxDropDownHeight="280" />
+                          <ComboBox Grid.Column="5" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedUploadLimit}" VerticalAlignment="Center" IsTextSearchEnabled="False" MaxDropDownHeight="280" />
                           <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <ToggleSwitch Classes="ui-switch" IsChecked="{Binding IsLimitControlEnabled}" />
                             <TextBlock FontSize="10" Opacity="0.65" MaxWidth="90" Text="{Binding LimitStatusText}" TextTrimming="CharacterEllipsis"

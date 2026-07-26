@@ -115,6 +115,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private NetworkInterfaceOption? _selectedInterface;
     private ObservableCollection<NetworkInterfaceOption> _networkInterfaces = [];
     private AppNavPage _selectedNavPage = AppNavPage.Overview;
+    /// <summary>When true, next ApplyFilters re-sorts by current sort mode.</summary>
+    private bool _processOrderDirty = true;
+    /// <summary>Hold list membership/order so open limit ComboBoxes are not rebuilt.</summary>
+    private DateTimeOffset _processListStableUntil = DateTimeOffset.MinValue;
 
     public MainWindowViewModel()
     {
@@ -163,7 +167,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 RaisePropertyChanged(nameof(IsHistoryPage));
                 RaisePropertyChanged(nameof(PageTitle));
                 RaisePropertyChanged(nameof(PageSubtitle));
-                ApplyFilters();
+                _processOrderDirty = true;
+                ApplyFilters(forceResort: true);
             }
         }
     }
@@ -696,7 +701,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref _searchText, value))
             {
-                ApplyFilters();
+                _processOrderDirty = true;
+                ApplyFilters(forceResort: true);
             }
         }
     }
@@ -708,7 +714,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             if (SetProperty(ref _showOnlyActive, value))
             {
-                ApplyFilters();
+                _processOrderDirty = true;
+                ApplyFilters(forceResort: true);
             }
         }
     }
@@ -721,7 +728,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedSortOption, value))
             {
                 _selectedSortMode = value.Mode;
-                ApplyFilters();
+                _processOrderDirty = true;
+                ApplyFilters(forceResort: true);
             }
         }
     }
@@ -874,6 +882,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task OnProcessLimitSettingsChangedAsync(ProcessTrafficViewModel process)
     {
+        // Keep process rows stable while the user is changing ComboBox / toggle values.
+        FreezeProcessList(TimeSpan.FromSeconds(12));
+
         CancellationTokenSource cts;
         lock (_limitSync)
         {
@@ -889,12 +900,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            await Task.Delay(350, cts.Token);
+            await Task.Delay(450, cts.Token);
             await ApplyProcessLimitsAsync(process, cts.Token);
+            // Stay stable a bit longer after apply so status text can be read.
+            FreezeProcessList(TimeSpan.FromSeconds(6));
         }
         catch (OperationCanceledException)
         {
             // Newer edit supersedes this apply.
+        }
+    }
+
+    private void FreezeProcessList(TimeSpan duration)
+    {
+        var until = DateTimeOffset.Now.Add(duration);
+        if (until > _processListStableUntil)
+        {
+            _processListStableUntil = until;
         }
     }
 
@@ -1187,7 +1209,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return $"0,{SparkHeight} {line} {lastX:0.##},{SparkHeight}";
     }
 
-    private void ApplyFilters()
+    private void ApplyFilters(bool forceResort = false)
     {
         IEnumerable<ProcessTrafficViewModel> query = _processMap.Values;
 
@@ -1213,23 +1235,124 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 x.Description.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
         }
 
-        query = _selectedSortMode switch
-        {
-            SortMode.Download => query.OrderByDescending(x => x.DownloadBytesPerSecond),
-            SortMode.Upload => query.OrderByDescending(x => x.UploadBytesPerSecond),
-            _ => query.OrderByDescending(x => x.TotalBytesPerSecond)
-        };
+        var filtered = query.ToList();
+        var holdStable = DateTimeOffset.Now < _processListStableUntil;
+        var shouldResort = (forceResort || _processOrderDirty || Processes.Count == 0) && !holdStable;
 
-        var ordered = query.Take(100).ToList();
-
-        Processes.Clear();
-        foreach (var process in ordered)
+        List<ProcessTrafficViewModel> ordered;
+        if (shouldResort)
         {
-            Processes.Add(process);
+            ordered = SortProcesses(filtered).Take(100).ToList();
+            _processOrderDirty = false;
         }
+        else
+        {
+            // Keep existing visual order so open ComboBoxes are not destroyed by re-sort/rebuild.
+            var filteredSet = new HashSet<ProcessTrafficViewModel>(filtered);
+            ordered = Processes.Where(filteredSet.Contains).ToList();
+            var alreadyListed = new HashSet<ProcessTrafficViewModel>(ordered);
+            foreach (var process in SortProcesses(filtered.Where(p => !alreadyListed.Contains(p))))
+            {
+                ordered.Add(process);
+            }
+
+            if (ordered.Count > 100)
+            {
+                ordered = ordered.Take(100).ToList();
+            }
+        }
+
+        SyncProcessList(ordered);
 
         RaisePropertyChanged(nameof(HasNoProcesses));
         RaisePropertyChanged(nameof(ProcessSummaryText));
+    }
+
+    private IOrderedEnumerable<ProcessTrafficViewModel> SortProcesses(IEnumerable<ProcessTrafficViewModel> source) =>
+        _selectedSortMode switch
+        {
+            SortMode.Download => source.OrderByDescending(x => x.DownloadBytesPerSecond)
+                .ThenBy(x => x.ProcessName, StringComparer.OrdinalIgnoreCase),
+            SortMode.Upload => source.OrderByDescending(x => x.UploadBytesPerSecond)
+                .ThenBy(x => x.ProcessName, StringComparer.OrdinalIgnoreCase),
+            _ => source.OrderByDescending(x => x.TotalBytesPerSecond)
+                .ThenBy(x => x.ProcessName, StringComparer.OrdinalIgnoreCase)
+        };
+
+    /// <summary>
+    /// Update the bound list without Clear()+re-Add of every row (which tears down ComboBoxes).
+    /// </summary>
+    private void SyncProcessList(IReadOnlyList<ProcessTrafficViewModel> desired)
+    {
+        if (Processes.Count == desired.Count)
+        {
+            var identical = true;
+            for (var i = 0; i < desired.Count; i++)
+            {
+                if (!ReferenceEquals(Processes[i], desired[i]))
+                {
+                    identical = false;
+                    break;
+                }
+            }
+
+            if (identical)
+            {
+                return;
+            }
+        }
+
+        for (var i = Processes.Count - 1; i >= 0; i--)
+        {
+            var existing = Processes[i];
+            var stillWanted = false;
+            for (var j = 0; j < desired.Count; j++)
+            {
+                if (ReferenceEquals(desired[j], existing))
+                {
+                    stillWanted = true;
+                    break;
+                }
+            }
+
+            if (!stillWanted)
+            {
+                Processes.RemoveAt(i);
+            }
+        }
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var item = desired[i];
+            var currentIndex = -1;
+            for (var j = 0; j < Processes.Count; j++)
+            {
+                if (ReferenceEquals(Processes[j], item))
+                {
+                    currentIndex = j;
+                    break;
+                }
+            }
+
+            if (currentIndex == i)
+            {
+                continue;
+            }
+
+            if (currentIndex < 0)
+            {
+                Processes.Insert(Math.Min(i, Processes.Count), item);
+            }
+            else
+            {
+                Processes.Move(currentIndex, i);
+            }
+        }
+
+        while (Processes.Count > desired.Count)
+        {
+            Processes.RemoveAt(Processes.Count - 1);
+        }
     }
 
     public void Dispose()
