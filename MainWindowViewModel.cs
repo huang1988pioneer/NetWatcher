@@ -646,7 +646,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         get
         {
             var version = typeof(MainWindowViewModel).Assembly.GetName().Version;
-            return version is null ? "v1.2.2" : $"v{version.Major}.{version.Minor}.{version.Build}";
+            return version is null ? "v1.2.3" : $"v{version.Major}.{version.Minor}.{version.Build}";
         }
     }
 

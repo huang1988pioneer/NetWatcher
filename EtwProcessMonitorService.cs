@@ -29,20 +29,44 @@ public sealed class EtwProcessMonitorService : IDisposable
 
     public ProcessMonitorSnapshot CollectSnapshot(double intervalSeconds)
     {
+        var safeInterval = Math.Max(0.2, intervalSeconds);
+
         lock (_sync)
         {
-            var processes = _processCounters
-                .Values
-                .Select(counter =>
+            // Aggregate by process name so multi-process browsers (Chrome/Edge) show one row.
+            var byName = new Dictionary<string, AggregatedProcess>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var counter in _processCounters.Values)
+            {
+                var identity = _processIdentityCache.GetOrAdd(counter.ProcessId, ResolveIdentity);
+                var key = string.IsNullOrWhiteSpace(identity.ProcessName)
+                    ? $"pid:{counter.ProcessId}"
+                    : identity.ProcessName;
+
+                if (!byName.TryGetValue(key, out var agg))
                 {
-                    var identity = _processIdentityCache.GetOrAdd(counter.ProcessId, ResolveIdentity);
-                    return new ProcessTrafficSnapshot(
-                        counter.ProcessId,
-                        identity.ProcessName,
-                        identity.Description,
-                        counter.DownloadBytes / intervalSeconds,
-                        counter.UploadBytes / intervalSeconds);
-                })
+                    agg = new AggregatedProcess(counter.ProcessId, identity.ProcessName, identity.Description);
+                    byName[key] = agg;
+                }
+
+                agg.DownloadBytes += counter.DownloadBytes;
+                agg.UploadBytes += counter.UploadBytes;
+                // Prefer a real PID that still exists.
+                if (agg.ProcessId <= 0)
+                {
+                    agg.ProcessId = counter.ProcessId;
+                }
+            }
+
+            var processes = byName.Values
+                .Select(agg => new ProcessTrafficSnapshot(
+                    agg.ProcessId,
+                    agg.ProcessName,
+                    agg.Description,
+                    agg.DownloadBytes / safeInterval,
+                    agg.UploadBytes / safeInterval))
+                .Where(p => p.DownloadBytesPerSecond > 0 || p.UploadBytesPerSecond > 0)
+                .OrderByDescending(p => p.DownloadBytesPerSecond + p.UploadBytesPerSecond)
                 .ToList();
 
             _processCounters.Clear();
@@ -65,12 +89,22 @@ public sealed class EtwProcessMonitorService : IDisposable
                 StopOnDispose = true
             };
 
+            // NetworkTCPIP covers IPv4/IPv6 TCP+UDP kernel events used for per-process accounting.
             _session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
 
-            _session.Source.Kernel.TcpIpRecv += data => RecordDownload(data.ProcessID, GetPayloadSize(data));
-            _session.Source.Kernel.TcpIpSend += data => RecordUpload(data.ProcessID, GetPayloadSize(data));
-            _session.Source.Kernel.UdpIpRecv += data => RecordDownload(data.ProcessID, GetPayloadSize(data));
-            _session.Source.Kernel.UdpIpSend += data => RecordUpload(data.ProcessID, GetPayloadSize(data));
+            var kernel = _session.Source.Kernel;
+
+            // IPv4 TCP/UDP
+            kernel.TcpIpRecv += data => RecordDownload(data.ProcessID, data.size);
+            kernel.TcpIpSend += data => RecordUpload(data.ProcessID, data.size);
+            kernel.UdpIpRecv += data => RecordDownload(data.ProcessID, data.size);
+            kernel.UdpIpSend += data => RecordUpload(data.ProcessID, data.size);
+
+            // IPv6 TCP/UDP (many modern downloads use IPv6 / dual-stack)
+            kernel.TcpIpRecvIPV6 += data => RecordDownload(data.ProcessID, data.size);
+            kernel.TcpIpSendIPV6 += data => RecordUpload(data.ProcessID, data.size);
+            kernel.UdpIpRecvIPV6 += data => RecordDownload(data.ProcessID, data.size);
+            kernel.UdpIpSendIPV6 += data => RecordUpload(data.ProcessID, data.size);
 
             _processingTask = Task.Run(() =>
             {
@@ -85,12 +119,12 @@ public sealed class EtwProcessMonitorService : IDisposable
                 }
             });
 
-            _startupStatus = "ETW 單一程式流量監聽中";
+            _startupStatus = "ETW 單一程式流量監聽中（TCP/UDP · IPv4/IPv6）";
             _isRunning = true;
         }
         catch (UnauthorizedAccessException)
         {
-            _startupStatus = "ETW 需要系統管理員權限，請以系統管理員身分執行。";
+            _startupStatus = "ETW 需要系統管理員權限，請以系統管理員身分執行（否則看不到單一程式流量）。";
             _isRunning = false;
         }
         catch (Exception ex)
@@ -100,19 +134,7 @@ public sealed class EtwProcessMonitorService : IDisposable
         }
     }
 
-    private static long GetPayloadSize(dynamic data)
-    {
-        try
-        {
-            return Math.Max(0, (long)data.size);
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private void RecordDownload(int processId, long bytes)
+    private void RecordDownload(int processId, int bytes)
     {
         if (processId <= 0 || bytes <= 0)
         {
@@ -131,7 +153,7 @@ public sealed class EtwProcessMonitorService : IDisposable
         }
     }
 
-    private void RecordUpload(int processId, long bytes)
+    private void RecordUpload(int processId, int bytes)
     {
         if (processId <= 0 || bytes <= 0)
         {
@@ -154,14 +176,24 @@ public sealed class EtwProcessMonitorService : IDisposable
     {
         try
         {
-            var process = Process.GetProcessById(processId);
+            using var process = Process.GetProcessById(processId);
+            string path;
+            try
+            {
+                path = process.MainModule?.FileName ?? string.Empty;
+            }
+            catch
+            {
+                path = string.Empty;
+            }
+
             return new ProcessIdentity(
                 process.ProcessName,
-                process.MainModule?.FileName ?? "系統或受保護行程");
+                string.IsNullOrWhiteSpace(path) ? "系統或受保護行程" : path);
         }
         catch
         {
-            return new ProcessIdentity("Unknown", "無法取得程式資訊");
+            return new ProcessIdentity($"pid{processId}", "無法取得程式資訊");
         }
     }
 
@@ -190,6 +222,26 @@ public sealed class EtwProcessMonitorService : IDisposable
         }
 
         public int ProcessId { get; }
+
+        public long DownloadBytes { get; set; }
+
+        public long UploadBytes { get; set; }
+    }
+
+    private sealed class AggregatedProcess
+    {
+        public AggregatedProcess(int processId, string processName, string description)
+        {
+            ProcessId = processId;
+            ProcessName = processName;
+            Description = description;
+        }
+
+        public int ProcessId { get; set; }
+
+        public string ProcessName { get; }
+
+        public string Description { get; }
 
         public long DownloadBytes { get; set; }
 
