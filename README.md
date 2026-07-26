@@ -1,15 +1,16 @@
-# NetWatcher
+# NetWatcher · 網路速度監控器
 
-Cross-platform desktop app for monitoring total network bandwidth in real time.
-Windows builds also include per-process traffic through ETW network events.
+Cross-platform desktop app for real-time network bandwidth monitoring and per-process speed limits.
+Windows builds include per-process traffic via ETW network events.
 
 ## Download
 
 Latest release:
 
-- [NetWatcher v1.1.0](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.1.0)
+- Current development build: **v1.2.0** (dashboard + MB/s + admin limit fixes)
+- Previous release tag: [NetWatcher v1.1.0](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.1.0)
 
-Release assets:
+Release assets (v1.1.0):
 
 - `NetWatcher-v1.1.0-win-x64.zip`
 - `NetWatcher-v1.1.0-macos-arm64.zip`
@@ -17,16 +18,49 @@ Release assets:
 
 ## Features
 
-- Real-time total download and upload speed
-- Traffic history chart for recent bandwidth changes
-- Per-process traffic list with search and sorting on Windows
-- CSV export for captured traffic history
-- Responsive layout optimized for both laptop and desktop screens
+Dashboard inspired by modern bandwidth monitors:
+
+| Area | Capability |
+|------|------------|
+| **總覽** | Dual download / upload speed cards with 60s sparklines (MB/s) |
+| **程式列表** | Live per-process DL/UL rates, status, avatar |
+| **速度限制** | Per-app download & upload MB/s presets + enable toggle |
+| **網路監控** | Larger dual-channel history charts + averages |
+| **歷史記錄** | Session / Today / Yesterday / Week / Month / All-time volume |
+| **設定** | Adapter picker, theme skins, CSV export, clear limits |
+
+### Per-process speed limit
+
+In the process table:
+
+1. Choose **下載限制** / **上傳限制** (e.g. `1 MB/s`, `10 MB/s`, or `不限制`)
+2. Keep the **toggle** on to apply control; turn off to release
+3. Limits persist in `settings/limits.json`
+
+### Windows control notes
+
+- **Upload limit**: Policy-based QoS (`New-NetQosPolicy`)
+- **Block / clear**: Windows Firewall rules where applicable
+- **Download limit**: stored and displayed; Windows cannot reliably throttle inbound per app without a kernel filter
+- Run as **Administrator** for ETW process traffic and QoS/Firewall actions
+
+### Appearance skins
+
+Settings → 外觀主題:
+
+- 整合 · 參考儀表板 (default)
+- NetBalancer / BWMeter / Eltrafico / GlassWire / NetLimiter 配色
+
+### Persistence
+
+- Process limits → `settings/limits.json`
+- Daily traffic counters → `settings/traffic-stats.json`
+- CSV export → `exports/`
 
 ## Requirements
 
 - Windows 10/11, macOS Apple Silicon, or macOS Intel
-- Administrator permission on Windows for per-process ETW monitoring
+- Administrator permission on Windows for per-process ETW + traffic control
 
 ## Quick Start
 
@@ -34,7 +68,7 @@ Release assets:
 2. Extract the zip.
 3. On Windows, run `NetWatcher.App.exe` as administrator.
 4. On macOS, run `chmod +x NetWatcher.App`, then start `./NetWatcher.App`.
-5. Watch live traffic, filter processes when supported, and export CSV when needed.
+5. Watch live MB/s cards; set per-process limits from the table.
 
 ## Development
 
@@ -60,14 +94,10 @@ Compress-Archive -Path .\artifacts\release\macos-arm64\* -DestinationPath .\arti
 Compress-Archive -Path .\artifacts\release\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.1.0-macos-x64.zip -Force
 ```
 
-Create GitHub release:
-
-```powershell
-gh release create v1.1.0 .\artifacts\release\NetWatcher-v1.1.0-win-x64.zip .\artifacts\release\NetWatcher-v1.1.0-macos-arm64.zip .\artifacts\release\NetWatcher-v1.1.0-macos-x64.zip --title "NetWatcher v1.1.0" --notes "Adds macOS arm64/x64 release packages while keeping Windows ETW per-process monitoring."
-```
-
 ## Notes
 
-- The app uses Windows ETW network events for per-process traffic monitoring on Windows.
-- macOS builds show total network bandwidth. Per-process traffic is shown as unsupported on macOS.
-- Exported CSV files are written to the `exports` folder.
+- Per-process traffic uses Windows ETW network events (~1s refresh).
+- Speeds in the dashboard are shown in **MB/s** by default (binary megabytes/s: 1 MB/s = 1024 KB/s).
+- Totals use **MB / GB** volume units.
+- macOS builds show total bandwidth; per-process traffic is unsupported.
+- Not affiliated with NetBalancer, Eltrafico, BWMeter, GlassWire, or NetLimiter.

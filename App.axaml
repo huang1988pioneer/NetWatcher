@@ -1,8 +1,145 @@
 <Application
     x:Class="NetWatcher.App.App"
     xmlns="https://github.com/avaloniaui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    RequestedThemeVariant="Dark">
   <Application.Styles>
     <FluentTheme />
+
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Segoe UI, Microsoft JhengHei UI, Inter, sans-serif" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style Selector="Button.ui-toolbar">
+      <Setter Property="Background" Value="#1A2A42" />
+      <Setter Property="Foreground" Value="#E8EEF5" />
+      <Setter Property="BorderBrush" Value="#2E4466" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.ui-toolbar:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#243A58" />
+    </Style>
+    <Style Selector="Button.ui-toolbar:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="#142033" />
+    </Style>
+
+    <Style Selector="Button.ui-nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#8FA3C0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="14,11" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Margin" Value="10,2" />
+    </Style>
+    <Style Selector="Button.ui-nav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#14FFFFFF" />
+      <Setter Property="Foreground" Value="#E8EEF5" />
+    </Style>
+    <Style Selector="Button.ui-nav.active">
+      <Setter Property="Background" Value="#1A3A6A" />
+      <Setter Property="Foreground" Value="#F0F6FF" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.ui-nav.active:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#224A80" />
+      <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+
+    <Style Selector="Button.ui-icon">
+      <Setter Property="Background" Value="#162238" />
+      <Setter Property="Foreground" Value="#9DB0CC" />
+      <Setter Property="BorderBrush" Value="#243454" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Button.ui-icon:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1E2F48" />
+    </Style>
+
+    <Style Selector="TextBox.ui-filter">
+      <Setter Property="Background" Value="#0C1528" />
+      <Setter Property="Foreground" Value="#E8EEF5" />
+      <Setter Property="BorderBrush" Value="#243454" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style Selector="ComboBox.ui-filter">
+      <Setter Property="Background" Value="#0C1528" />
+      <Setter Property="Foreground" Value="#E8EEF5" />
+      <Setter Property="BorderBrush" Value="#243454" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="8,4" />
+    </Style>
+
+    <Style Selector="ComboBox.ui-limit">
+      <Setter Property="Background" Value="#162238" />
+      <Setter Property="Foreground" Value="#D6E2F2" />
+      <Setter Property="BorderBrush" Value="#2A3F60" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="MinWidth" Value="96" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Padding" Value="8,2" />
+    </Style>
+
+    <Style Selector="ComboBox.ui-priority">
+      <Setter Property="Background" Value="#162238" />
+      <Setter Property="Foreground" Value="#E8EEF5" />
+      <Setter Property="BorderBrush" Value="#2A3F60" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="MinWidth" Value="88" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="6,2" />
+    </Style>
+
+    <Style Selector="ToggleSwitch.ui-switch">
+      <Setter Property="OnContent" Value="" />
+      <Setter Property="OffContent" Value="" />
+      <Setter Property="MinHeight" Value="24" />
+    </Style>
+
+    <Style Selector="CheckBox.ui-check">
+      <Setter Property="Foreground" Value="#C5D0DC" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style Selector="Border.ui-process-row:pointerover">
+      <Setter Property="Background" Value="#12FFFFFF" />
+    </Style>
+
+    <Style Selector="Border.ui-card">
+      <Setter Property="Background" Value="#111B2E" />
+      <Setter Property="BorderBrush" Value="#243454" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+    </Style>
+
+    <Style Selector="Border.ui-badge">
+      <Setter Property="Background" Value="#1A3A6A" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="8,3" />
+    </Style>
   </Application.Styles>
 </Application>
