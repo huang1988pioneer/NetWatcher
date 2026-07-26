@@ -7,13 +7,13 @@ Windows builds include per-process traffic via ETW network events.
 
 Latest release:
 
-- [NetWatcher v1.2.1](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.1)
+- [NetWatcher v1.2.2](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.2)
 
 Release assets:
 
-- `NetWatcher-v1.2.1-win-x64.zip`
-- `NetWatcher-v1.2.1-macos-arm64.zip`
-- `NetWatcher-v1.2.1-macos-x64.zip`
+- `NetWatcher-v1.2.2-win-x64.zip`
+- `NetWatcher-v1.2.2-macos-arm64.zip`
+- `NetWatcher-v1.2.2-macos-x64.zip`
 
 ## Features
 
@@ -81,7 +81,7 @@ Publish Windows release:
 
 ```powershell
 dotnet publish NetWatcher.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\win-x64
-Compress-Archive -Path .\artifacts\release\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.1-win-x64.zip -Force
+Compress-Archive -Path .\artifacts\release\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.2-win-x64.zip -Force
 ```
 
 Publish macOS releases:
@@ -89,8 +89,8 @@ Publish macOS releases:
 ```powershell
 dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\macos-arm64
 dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\macos-x64
-Compress-Archive -Path .\artifacts\release\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.1-macos-arm64.zip -Force
-Compress-Archive -Path .\artifacts\release\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.1-macos-x64.zip -Force
+Compress-Archive -Path .\artifacts\release\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.2-macos-arm64.zip -Force
+Compress-Archive -Path .\artifacts\release\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.2-macos-x64.zip -Force
 ```
 
 ## Notes

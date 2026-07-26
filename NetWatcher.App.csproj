@@ -8,10 +8,10 @@
     <UseWindowsForms>false</UseWindowsForms>
     <AssemblyName>NetWatcher.App</AssemblyName>
     <RootNamespace>NetWatcher.App</RootNamespace>
-    <Version>1.2.1</Version>
-    <AssemblyVersion>1.2.1.0</AssemblyVersion>
-    <FileVersion>1.2.1.0</FileVersion>
-    <InformationalVersion>1.2.1</InformationalVersion>
+    <Version>1.2.2</Version>
+    <AssemblyVersion>1.2.2.0</AssemblyVersion>
+    <FileVersion>1.2.2.0</FileVersion>
+    <InformationalVersion>1.2.2</InformationalVersion>
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
   </PropertyGroup>
 

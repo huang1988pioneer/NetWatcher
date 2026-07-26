@@ -542,9 +542,28 @@ public sealed class TrafficLimitService : IDisposable
         }
 
         _disposed = true;
+
+        // Avoid blocking UI shutdown with PowerShell cleanup when not elevated
+        // (common source of "hung close" / resource pressure).
+        if (!IsWindowsSupported || !IsElevated)
+        {
+            lock (_sync)
+            {
+                _activePolicies.Clear();
+                _activeFirewallRules.Clear();
+            }
+
+            return;
+        }
+
         try
         {
-            RemoveAllAsync().GetAwaiter().GetResult();
+            // Bound cleanup so exit cannot hang forever.
+            var cleanup = RemoveAllAsync();
+            if (!cleanup.Wait(TimeSpan.FromSeconds(3)))
+            {
+                // Let process exit; OS will drop ActiveStore session policies.
+            }
         }
         catch
         {

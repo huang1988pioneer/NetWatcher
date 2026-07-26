@@ -12,6 +12,7 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private IClassicDesktopStyleApplicationLifetime? _desktop;
     private bool _isExitRequested;
+    private bool _mainWindowClosed;
 
     public override void Initialize()
     {
@@ -23,40 +24,12 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _desktop = desktop;
-            // Close main window = exit app (avoids "flash then disappear to tray" confusion).
             _desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
 
             try
             {
-                _mainWindow = new MainWindow
-                {
-                    DataContext = new MainWindowViewModel(),
-                    Icon = AppIconFactory.CreateWindowIcon(),
-                    ShowInTaskbar = true,
-                    WindowState = WindowState.Normal
-                };
-
-                _mainWindow.Closing += MainWindowOnClosing;
-                desktop.MainWindow = _mainWindow;
+                CreateAndShowMainWindow(desktop);
                 InitializeTrayIcon();
-
-                // Defer activate to next UI tick so the window stays visible after layout.
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (_mainWindow is null || _isExitRequested)
-                    {
-                        return;
-                    }
-
-                    _mainWindow.ShowInTaskbar = true;
-                    if (_mainWindow.WindowState == WindowState.Minimized)
-                    {
-                        _mainWindow.WindowState = WindowState.Normal;
-                    }
-
-                    _mainWindow.Show();
-                    _mainWindow.Activate();
-                }, DispatcherPriority.Loaded);
             }
             catch (Exception ex)
             {
@@ -68,15 +41,61 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
+    private void CreateAndShowMainWindow(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        _mainWindowClosed = false;
+        _mainWindow = new MainWindow
+        {
+            DataContext = new MainWindowViewModel(),
+            Icon = AppIconFactory.CreateWindowIcon(),
+            ShowInTaskbar = true,
+            WindowState = WindowState.Normal
+        };
+
+        _mainWindow.Closing += MainWindowOnClosing;
+        _mainWindow.Closed += MainWindowOnClosed;
+        desktop.MainWindow = _mainWindow;
+
+        // Ensure visible without relying on tray re-show after close.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isExitRequested || _mainWindow is null || _mainWindowClosed)
+            {
+                return;
+            }
+
+            try
+            {
+                _mainWindow.ShowInTaskbar = true;
+                if (_mainWindow.WindowState == WindowState.Minimized)
+                {
+                    _mainWindow.WindowState = WindowState.Normal;
+                }
+
+                if (!_mainWindow.IsVisible)
+                {
+                    _mainWindow.Show();
+                }
+
+                _mainWindow.Activate();
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Window already closing/closed — ignore.
+                WriteCrashLog(ex);
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
     private void InitializeTrayIcon()
     {
         try
         {
             var showItem = new NativeMenuItem("顯示主視窗");
-            showItem.Click += (_, _) => ShowMainWindow();
+            showItem.Click += OnTrayShowClicked;
 
             var exitItem = new NativeMenuItem("結束程式");
-            exitItem.Click += (_, _) => ExitApplication();
+            exitItem.Click += OnTrayExitClicked;
 
             var menu = new NativeMenu();
             menu.Add(showItem);
@@ -89,14 +108,19 @@ public partial class App : Application
                 Menu = menu,
                 IsVisible = true
             };
-            _trayIcon.Clicked += (_, _) => ShowMainWindow();
+            _trayIcon.Clicked += OnTrayIconClicked;
         }
         catch
         {
-            // Tray is optional; never block startup if icon fails.
             _trayIcon = null;
         }
     }
+
+    private void OnTrayShowClicked(object? sender, EventArgs e) => ShowMainWindow();
+
+    private void OnTrayExitClicked(object? sender, EventArgs e) => ExitApplication();
+
+    private void OnTrayIconClicked(object? sender, EventArgs e) => ShowMainWindow();
 
     private void MainWindowOnClosing(object? sender, WindowClosingEventArgs e)
     {
@@ -105,36 +129,90 @@ public partial class App : Application
             return;
         }
 
-        // Normal close: tear down services then exit.
+        // Mark exit early and drop tray first so click handlers cannot re-Show a closing window.
         _isExitRequested = true;
-        DisposeServices();
         DisposeTray();
+        DisposeServices();
+    }
+
+    private void MainWindowOnClosed(object? sender, EventArgs e)
+    {
+        _mainWindowClosed = true;
+        if (_mainWindow is not null)
+        {
+            _mainWindow.Closing -= MainWindowOnClosing;
+            _mainWindow.Closed -= MainWindowOnClosed;
+        }
+
+        _mainWindow = null;
     }
 
     private void ShowMainWindow()
-    {
-        if (_mainWindow is null)
-        {
-            return;
-        }
-
-        _mainWindow.ShowInTaskbar = true;
-        _mainWindow.WindowState = WindowState.Normal;
-        _mainWindow.Show();
-        _mainWindow.Activate();
-    }
-
-    private void ExitApplication()
     {
         if (_isExitRequested)
         {
             return;
         }
 
+        try
+        {
+            // Closed windows cannot be shown again in Avalonia — recreate if needed.
+            if (_mainWindow is null || _mainWindowClosed)
+            {
+                if (_desktop is null)
+                {
+                    return;
+                }
+
+                _isExitRequested = false;
+                CreateAndShowMainWindow(_desktop);
+                return;
+            }
+
+            _mainWindow.ShowInTaskbar = true;
+            if (_mainWindow.WindowState == WindowState.Minimized)
+            {
+                _mainWindow.WindowState = WindowState.Normal;
+            }
+
+            if (!_mainWindow.IsVisible)
+            {
+                _mainWindow.Show();
+            }
+
+            _mainWindow.Activate();
+        }
+        catch (InvalidOperationException ex)
+        {
+            WriteCrashLog(ex);
+        }
+        catch (Exception ex)
+        {
+            WriteCrashLog(ex);
+        }
+    }
+
+    private void ExitApplication()
+    {
+        if (_isExitRequested && _mainWindow is null)
+        {
+            _desktop?.Shutdown();
+            return;
+        }
+
         _isExitRequested = true;
-        DisposeServices();
         DisposeTray();
-        _mainWindow?.Close();
+        DisposeServices();
+
+        try
+        {
+            _mainWindow?.Close();
+        }
+        catch
+        {
+            // Ignore close races.
+        }
+
         _desktop?.Shutdown();
     }
 
@@ -150,6 +228,12 @@ public partial class App : Application
             {
                 // Ignore dispose failures on exit.
             }
+
+            // Prevent double dispose if window recreated later.
+            if (_mainWindow is not null)
+            {
+                _mainWindow.DataContext = null;
+            }
         }
     }
 
@@ -162,6 +246,7 @@ public partial class App : Application
 
         try
         {
+            _trayIcon.Clicked -= OnTrayIconClicked;
             _trayIcon.IsVisible = false;
             _trayIcon.Dispose();
         }
@@ -178,7 +263,7 @@ public partial class App : Application
         try
         {
             var path = Path.Combine(AppContext.BaseDirectory, "startup-crash.log");
-            File.WriteAllText(path, $"{DateTime.Now:O}{Environment.NewLine}{ex}");
+            File.AppendAllText(path, $"{DateTime.Now:O}{Environment.NewLine}{ex}{Environment.NewLine}{Environment.NewLine}");
         }
         catch
         {

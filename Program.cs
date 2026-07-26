@@ -5,13 +5,35 @@ namespace NetWatcher.App;
 
 internal sealed class Program
 {
+    private const string MutexName = @"Local\NetWatcher.App.SingleInstance.v1";
+
     [STAThread]
     public static void Main(string[] args)
     {
-        // Single-instance: bring existing window forward instead of a second silent process.
-        if (!TryAcquireSingleInstance(out var mutex) && ActivateExistingInstance())
+        // Single-instance: prefer one process. If the mutex is held by a dead/orphaned owner,
+        // still allow start so users are not stuck with "系統資源不足" / silent fail.
+        if (!TryAcquireSingleInstance(out var mutex))
         {
-            return;
+            if (HasResponsiveInstance())
+            {
+                return;
+            }
+
+            // Stale mutex / zombie: try again after abandoning wait.
+            try
+            {
+                mutex?.Dispose();
+            }
+            catch
+            {
+                // ignore
+            }
+
+            if (!TryAcquireSingleInstance(out mutex))
+            {
+                // Last resort: continue without exclusive mutex rather than blocking forever.
+                mutex = null;
+            }
         }
 
         try
@@ -39,6 +61,15 @@ internal sealed class Program
         }
         finally
         {
+            try
+            {
+                mutex?.ReleaseMutex();
+            }
+            catch
+            {
+                // ignore
+            }
+
             mutex?.Dispose();
         }
     }
@@ -52,36 +83,74 @@ internal sealed class Program
 
     private static bool TryAcquireSingleInstance(out Mutex? mutex)
     {
-        mutex = new Mutex(true, @"Local\NetWatcher.App.SingleInstance", out var createdNew);
-        if (createdNew)
+        try
         {
+            mutex = new Mutex(true, MutexName, out var createdNew);
+            if (createdNew)
+            {
+                return true;
+            }
+
+            // Another process owns it — check if it is still alive.
+            try
+            {
+                // Wait briefly; abandoned mutex means previous owner crashed.
+                var owned = mutex.WaitOne(0);
+                if (owned)
+                {
+                    return true;
+                }
+            }
+            catch (AbandonedMutexException)
+            {
+                return true;
+            }
+
+            mutex.Dispose();
+            mutex = null;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            WriteCrashLog(ex);
+            mutex = null;
+            // Mutex creation failure (resource pressure / permissions): allow app to start.
             return true;
         }
-
-        mutex.Dispose();
-        mutex = null;
-        return false;
     }
 
-    private static bool ActivateExistingInstance()
+    private static bool HasResponsiveInstance()
     {
         try
         {
             var current = Process.GetCurrentProcess();
             foreach (var process in Process.GetProcessesByName(current.ProcessName))
             {
-                if (process.Id == current.Id)
+                try
                 {
-                    continue;
-                }
+                    if (process.Id == current.Id)
+                    {
+                        continue;
+                    }
 
-                // Best-effort: existing instance keeps its tray/window; user can Alt+Tab.
-                return true;
+                    if (!process.HasExited && process.Responding)
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // Protected process metadata.
+                }
+                finally
+                {
+                    process.Dispose();
+                }
             }
         }
         catch
         {
-            // Ignore activation failures; continue launching.
+            // Ignore enumeration failures.
         }
 
         return false;
@@ -100,4 +169,3 @@ internal sealed class Program
         }
     }
 }
-

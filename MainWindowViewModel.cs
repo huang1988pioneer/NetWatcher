@@ -646,7 +646,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         get
         {
             var version = typeof(MainWindowViewModel).Assembly.GetName().Version;
-            return version is null ? "v1.2.1" : $"v{version.Major}.{version.Minor}.{version.Build}";
+            return version is null ? "v1.2.2" : $"v{version.Major}.{version.Minor}.{version.Build}";
         }
     }
 
@@ -1044,11 +1044,32 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (AdminElevation.TryRestartElevated())
         {
             LimitEngineStatusText = "正在以系統管理員重新啟動…";
-            // Exit current non-elevated instance.
-            if (Avalonia.Application.Current?.ApplicationLifetime is
-                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            // Exit cleanly so tray/window handlers cannot re-show a closed window.
+            try
             {
-                desktop.Shutdown();
+                if (Avalonia.Application.Current?.ApplicationLifetime is
+                    Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            desktop.Shutdown();
+                        }
+                        catch
+                        {
+                            Environment.Exit(0);
+                        }
+                    });
+                }
+                else
+                {
+                    Environment.Exit(0);
+                }
+            }
+            catch
+            {
+                Environment.Exit(0);
             }
 
             return true;
