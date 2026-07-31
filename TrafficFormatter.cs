@@ -19,7 +19,17 @@ public static class TrafficFormatter
     }
 
     /// <summary>Default dashboard rate unit: MB/s (binary megabytes per second).</summary>
-    public static string FormatSpeed(double bytesPerSecond) => FormatBytesPerSecond(bytesPerSecond);
+    public static string FormatSpeed(double bytesPerSecond) => FormatMBps(bytesPerSecond);
+
+    /// <summary>Always format as MB/s for the simplified dashboard.</summary>
+    public static string FormatMBps(double bytesPerSecond)
+    {
+        var mbps = Math.Max(0, bytesPerSecond) / BytesPerMBps;
+        return mbps >= 100 ? $"{mbps:0.#} MB/s"
+             : mbps >= 10  ? $"{mbps:0.##} MB/s"
+             : mbps >= 1   ? $"{mbps:0.##} MB/s"
+                           : $"{mbps:0.00} MB/s";
+    }
 
     public static double BytesPerSecondToMBps(double bytesPerSecond) =>
         Math.Max(0, bytesPerSecond) / BytesPerMBps;

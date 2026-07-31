@@ -6,11 +6,11 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="using:NetWatcher.App"
     x:DataType="vm:MainWindowViewModel"
-    Width="1360"
-    Height="860"
-    MinWidth="1100"
-    MinHeight="680"
-    Title="網路速度監控器 v1.2.4"
+    Width="920"
+    Height="640"
+    MinWidth="720"
+    MinHeight="440"
+    Title="NetWatcher"
     Background="{Binding WindowBackground}"
     Foreground="#E8EEF5"
     ShowInTaskbar="True"
@@ -19,584 +19,116 @@
     <vm:MainWindowViewModel />
   </Design.DataContext>
 
-  <Grid ColumnDefinitions="220,*">
-
-    <!-- ===== Left sidebar ===== -->
-    <Border Background="{Binding SidebarBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,1,0">
-      <Grid RowDefinitions="Auto,*,Auto">
-        <!-- Brand -->
-        <Border Padding="18,18,18,12" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1">
-          <StackPanel Orientation="Horizontal" Spacing="12">
-            <Border Width="40" Height="40" CornerRadius="20" Background="#153060">
-              <TextBlock Text="⏱" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-            <StackPanel Spacing="2" VerticalAlignment="Center">
-              <TextBlock FontSize="14" FontWeight="SemiBold" Text="網路速度監控器" />
-              <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="即時監控下載 / 上傳速度" TextWrapping="Wrap" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
-
-        <!-- Nav -->
-        <StackPanel Grid.Row="1" Margin="0,14,0,0" Spacing="2">
-          <Button Classes="ui-nav" Tag="Overview" Click="NavButton_OnClick">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="⏱" Width="18" TextAlignment="Center" />
-              <TextBlock Text="總覽" />
-            </StackPanel>
-          </Button>
-          <Button Classes="ui-nav" Tag="Processes" Click="NavButton_OnClick">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="▦" Width="18" TextAlignment="Center" />
-              <TextBlock Text="程式管理" />
-            </StackPanel>
-          </Button>
-          <Button Classes="ui-nav" Tag="Network" Click="NavButton_OnClick">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="↗" Width="18" TextAlignment="Center" />
-              <TextBlock Text="網路監控" />
-            </StackPanel>
-          </Button>
-          <Button Classes="ui-nav" Tag="Limits" Click="NavButton_OnClick">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="◎" Width="18" TextAlignment="Center" />
-              <TextBlock Text="速度限制" />
-            </StackPanel>
-          </Button>
-          <Button Classes="ui-nav" Tag="Settings" Click="NavButton_OnClick">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="⚙" Width="18" TextAlignment="Center" />
-              <TextBlock Text="設定" />
-            </StackPanel>
-          </Button>
-          <Button Classes="ui-nav" Tag="History" Click="NavButton_OnClick">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock Text="◷" Width="18" TextAlignment="Center" />
-              <TextBlock Text="歷史記錄" />
-            </StackPanel>
-          </Button>
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Border Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1" Padding="20,14">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock FontSize="17" FontWeight="SemiBold" Text="NetWatcher" />
+          <TextBlock FontSize="12" Foreground="{Binding MutedTextBrush}" Text="即時網路速度與程式限速" />
         </StackPanel>
-
-        <!-- Sidebar footer -->
-        <Border Grid.Row="2" Padding="18,14" BorderBrush="{Binding PanelBorder}" BorderThickness="0,1,0,0">
-          <StackPanel Spacing="6">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Border Width="8" Height="8" CornerRadius="4" Background="{Binding ConnectionStatusBrush}" VerticalAlignment="Center" />
-              <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="{Binding NetworkLinkText}" />
-            </StackPanel>
-            <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding RuntimeText, StringFormat=運行時間：{0}}" />
-          </StackPanel>
-        </Border>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+          <Border Width="8" Height="8" CornerRadius="4" Background="{Binding ConnectionStatusBrush}" VerticalAlignment="Center" />
+          <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="{Binding NetworkLinkText}" />
+        </StackPanel>
       </Grid>
     </Border>
 
-    <!-- ===== Main column ===== -->
-    <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="1" Background="#3A2810" BorderBrush="#A16207" BorderThickness="1" CornerRadius="10" Padding="14,10"
+            Margin="16,12,16,0" IsVisible="{Binding NeedsAdminForLimits}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <StackPanel Spacing="2">
+          <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#FBBF24" Text="限速需要系統管理員權限" />
+          <TextBlock FontSize="11" Foreground="#FDE68A" Text="以系統管理員重新啟動後，才能套用程式的下載與上傳限制。" />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="ui-toolbar" Content="以系統管理員重新啟動"
+                VerticalAlignment="Center" Click="RestartAsAdminButton_OnClick" />
+      </Grid>
+    </Border>
 
-      <!-- Top chrome -->
-      <Border Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1" Padding="22,14">
-        <Grid ColumnDefinitions="*,Auto">
-          <StackPanel Spacing="2" VerticalAlignment="Center">
-            <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding PageTitle}" />
-            <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="{Binding PageSubtitle}" />
-          </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-            <Border Background="{Binding PanelAltBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,6">
-              <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding AppBuildInfoText}" />
-            </Border>
-            <Border Background="{Binding PanelAltBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="1" CornerRadius="8" Padding="10,6">
-              <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding LastUpdatedText}" />
-            </Border>
-            <Button Classes="ui-icon" Content="⚙" Click="SettingsNavButton_OnClick" ToolTip.Tip="設定" />
-          </StackPanel>
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16,12">
+      <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+          <Border Classes="ui-card" Background="{Binding DownloadCardBackground}" Padding="18,16">
+            <StackPanel Spacing="7">
+              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" Text="↓ 下載速度" />
+              <TextBlock FontSize="34" FontWeight="SemiBold" FontFamily="Segoe UI, Consolas, monospace"
+                         Foreground="{Binding DownloadAccentBrush}" Text="{Binding TotalDownloadSpeedText}" />
+              <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="即時總下載速度 · MB/s" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="ui-card" Background="{Binding UploadCardBackground}" Padding="18,16">
+            <StackPanel Spacing="7">
+              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" Text="↑ 上傳速度" />
+              <TextBlock FontSize="34" FontWeight="SemiBold" FontFamily="Segoe UI, Consolas, monospace"
+                         Foreground="{Binding UploadAccentBrush}" Text="{Binding TotalUploadSpeedText}" />
+              <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="即時總上傳速度 · MB/s" />
+            </StackPanel>
+          </Border>
         </Grid>
-      </Border>
 
-      <!-- Content -->
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18,16">
-        <StackPanel Spacing="14">
-
-          <!-- Admin required banner -->
-          <Border Background="#3A2810" BorderBrush="#A16207" BorderThickness="1" CornerRadius="10" Padding="14,10"
-                  IsVisible="{Binding NeedsAdminForLimits}">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-              <StackPanel Spacing="2">
-                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#FBBF24" Text="無法套用限速：需要系統管理員權限" />
-                <TextBlock FontSize="11" Foreground="#FDE68A" TextWrapping="Wrap"
-                           Text="上傳限速使用 Windows QoS，必須以系統管理員執行。下載限速在無核心驅動下無法真正生效。" />
-              </StackPanel>
-              <Button Grid.Column="1" Classes="ui-toolbar" Content="以系統管理員重新啟動"
-                      VerticalAlignment="Center" Click="RestartAsAdminButton_OnClick" />
-            </Grid>
-          </Border>
-
-          <!-- Overview / Network: dual speed cards -->
-          <Grid ColumnDefinitions="*,*" ColumnSpacing="14"
-                IsVisible="{Binding IsOverviewPage}">
-            <!-- Download card -->
-            <Border Classes="ui-card" Background="{Binding DownloadCardBackground}" Padding="18">
-              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-                <StackPanel Spacing="8" MinWidth="150">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="↓" FontSize="14" Foreground="{Binding DownloadAccentBrush}" FontWeight="Bold" />
-                    <TextBlock Text="下載速度" FontSize="13" Foreground="{Binding SecondaryTextBrush}" />
-                  </StackPanel>
-                  <TextBlock FontSize="36" FontWeight="Bold" FontFamily="Segoe UI, Consolas, monospace"
-                             Foreground="{Binding DownloadAccentBrush}" Text="{Binding TotalDownloadSpeedText}" />
-                  <StackPanel Spacing="3">
-                    <TextBlock FontSize="12" Foreground="{Binding MutedTextBrush}"
-                               Text="{Binding DownloadPeakText, StringFormat=峰值：{0}}" />
-                    <TextBlock FontSize="12" Foreground="{Binding MutedTextBrush}"
-                               Text="{Binding SessionDownloadText, StringFormat=總計：{0}}" />
-                  </StackPanel>
+        <Border Classes="ui-card">
+          <Grid RowDefinitions="Auto,Auto,*">
+            <Border Padding="16,12" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2">
+                  <TextBlock FontSize="15" FontWeight="SemiBold" Text="程式限速" />
+                  <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding ProcessSummaryText}" />
                 </StackPanel>
-                <Grid Grid.Column="1">
-                  <Border Background="{Binding ChartBackground}" CornerRadius="10" Padding="10,8" MinHeight="120">
-                    <Grid>
-                      <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                      </Grid.RowDefinitions>
-                      <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}"
-                                   Text="{Binding DownloadChartMaxText}" VerticalAlignment="Center" />
-                        <Border Classes="ui-badge" HorizontalAlignment="Right">
-                          <TextBlock FontSize="10" Foreground="{Binding DownloadAccentBrush}" Text="即時速度" />
-                        </Border>
-                      </Grid>
-                      <Viewbox Grid.Row="1" Stretch="Fill" Height="88" Margin="0,6">
-                        <Canvas Width="320" Height="100">
-                          <Polygon Points="{Binding DownloadAreaPoints}" Fill="{Binding DownloadFillBrush}" />
-                          <Polyline Points="{Binding DownloadHistoryPoints}" Stroke="{Binding DownloadAccentBrush}" StrokeThickness="2.2" />
-                        </Canvas>
-                      </Viewbox>
-                      <Grid Grid.Row="2" ColumnDefinitions="*,*">
-                        <TextBlock FontSize="10" Foreground="{Binding MutedTextBrush}" Text="60 秒前" />
-                        <TextBlock Grid.Column="1" FontSize="10" Foreground="{Binding MutedTextBrush}" Text="現在" HorizontalAlignment="Right" />
-                      </Grid>
-                    </Grid>
-                  </Border>
-                </Grid>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <TextBox Classes="ui-filter" Width="170" Watermark="搜尋程式" Text="{Binding SearchText}" />
+                  <Button Classes="ui-toolbar" Content="清除全部限速" Click="ClearAllLimitsButton_OnClick" />
+                </StackPanel>
               </Grid>
             </Border>
 
-            <!-- Upload card -->
-            <Border Grid.Column="1" Classes="ui-card" Background="{Binding UploadCardBackground}" Padding="18">
-              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-                <StackPanel Spacing="8" MinWidth="150">
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="↑" FontSize="14" Foreground="{Binding UploadAccentBrush}" FontWeight="Bold" />
-                    <TextBlock Text="上傳速度" FontSize="13" Foreground="{Binding SecondaryTextBrush}" />
-                  </StackPanel>
-                  <TextBlock FontSize="36" FontWeight="Bold" FontFamily="Segoe UI, Consolas, monospace"
-                             Foreground="{Binding UploadAccentBrush}" Text="{Binding TotalUploadSpeedText}" />
-                  <StackPanel Spacing="3">
-                    <TextBlock FontSize="12" Foreground="{Binding MutedTextBrush}"
-                               Text="{Binding UploadPeakText, StringFormat=峰值：{0}}" />
-                    <TextBlock FontSize="12" Foreground="{Binding MutedTextBrush}"
-                               Text="{Binding SessionUploadText, StringFormat=總計：{0}}" />
-                  </StackPanel>
-                </StackPanel>
-                <Grid Grid.Column="1">
-                  <Border Background="{Binding ChartBackground}" CornerRadius="10" Padding="10,8" MinHeight="120">
-                    <Grid>
-                      <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                      </Grid.RowDefinitions>
-                      <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}"
-                                   Text="{Binding UploadChartMaxText}" VerticalAlignment="Center" />
-                        <Border Classes="ui-badge" Background="#163528" HorizontalAlignment="Right">
-                          <TextBlock FontSize="10" Foreground="{Binding UploadAccentBrush}" Text="即時速度" />
-                        </Border>
-                      </Grid>
-                      <Viewbox Grid.Row="1" Stretch="Fill" Height="88" Margin="0,6">
-                        <Canvas Width="320" Height="100">
-                          <Polygon Points="{Binding UploadAreaPoints}" Fill="{Binding UploadFillBrush}" />
-                          <Polyline Points="{Binding UploadHistoryPoints}" Stroke="{Binding UploadAccentBrush}" StrokeThickness="2.2" />
-                        </Canvas>
-                      </Viewbox>
-                      <Grid Grid.Row="2" ColumnDefinitions="*,*">
-                        <TextBlock FontSize="10" Foreground="{Binding MutedTextBrush}" Text="60 秒前" />
-                        <TextBlock Grid.Column="1" FontSize="10" Foreground="{Binding MutedTextBrush}" Text="現在" HorizontalAlignment="Right" />
-                      </Grid>
-                    </Grid>
-                  </Border>
-                </Grid>
+            <Border Grid.Row="1" Background="{Binding HeaderBackground}" Padding="16,9">
+              <Grid ColumnDefinitions="2.2*,1*,1*,1.2*,1.2*,Auto" ColumnSpacing="10">
+                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="程式" />
+                <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" Text="下載 MB/s" />
+                <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" Text="上傳 MB/s" />
+                <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="下載限速" />
+                <TextBlock Grid.Column="4" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="上傳限速" />
+                <TextBlock Grid.Column="5" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="啟用" />
               </Grid>
             </Border>
-          </Grid>
 
-          <!-- Network page: larger dual charts -->
-          <Grid ColumnDefinitions="*,*" ColumnSpacing="14" IsVisible="{Binding IsNetworkPage}">
-            <Border Classes="ui-card" Padding="16">
-              <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock FontSize="14" FontWeight="SemiBold" Text="下載曲線（60 秒）" />
-                  <TextBlock Grid.Column="1" FontSize="12" Foreground="{Binding DownloadAccentBrush}" Text="{Binding TotalDownloadSpeedText}" />
-                </Grid>
-                <Border Background="{Binding ChartBackground}" CornerRadius="10" Padding="10" Height="180">
-                  <Viewbox Stretch="Fill">
-                    <Canvas Width="320" Height="100">
-                      <Polygon Points="{Binding DownloadAreaPoints}" Fill="{Binding DownloadFillBrush}" />
-                      <Polyline Points="{Binding DownloadHistoryPoints}" Stroke="{Binding DownloadAccentBrush}" StrokeThickness="2.4" />
-                    </Canvas>
-                  </Viewbox>
-                </Border>
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding Avg10SummaryText, StringFormat=AVG 10s  {0}}" />
-              </StackPanel>
-            </Border>
-            <Border Grid.Column="1" Classes="ui-card" Padding="16">
-              <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock FontSize="14" FontWeight="SemiBold" Text="上傳曲線（60 秒）" />
-                  <TextBlock Grid.Column="1" FontSize="12" Foreground="{Binding UploadAccentBrush}" Text="{Binding TotalUploadSpeedText}" />
-                </Grid>
-                <Border Background="{Binding ChartBackground}" CornerRadius="10" Padding="10" Height="180">
-                  <Viewbox Stretch="Fill">
-                    <Canvas Width="320" Height="100">
-                      <Polygon Points="{Binding UploadAreaPoints}" Fill="{Binding UploadFillBrush}" />
-                      <Polyline Points="{Binding UploadHistoryPoints}" Stroke="{Binding UploadAccentBrush}" StrokeThickness="2.4" />
-                    </Canvas>
-                  </Viewbox>
-                </Border>
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding Avg30SummaryText, StringFormat=AVG 30s  {0}}" />
-              </StackPanel>
-            </Border>
-          </Grid>
-
-          <!-- Process table (overview / processes / limits) -->
-          <Border Classes="ui-card"
-                  IsVisible="{Binding IsOverviewPage}">
-            <Grid RowDefinitions="Auto,Auto,*">
-              <!-- Table header toolbar -->
-              <Border Padding="16,14" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                  <StackPanel Spacing="2">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="程式網路使用與速度限制" />
-                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding ProcessSummaryText}" />
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{Binding MutedTextBrush}" Text="顯示：" />
-                    <ComboBox Classes="ui-filter" Width="120" ItemsSource="{Binding SortModes}" SelectedItem="{Binding SelectedSortOption}" />
-                    <TextBox Classes="ui-filter" Width="180" Watermark="搜尋程式" Text="{Binding SearchText}" />
-                    <CheckBox Classes="ui-check" IsChecked="{Binding ShowOnlyActive}" Content="有流量/已控管" VerticalAlignment="Center" />
-                  </StackPanel>
-                </Grid>
-              </Border>
-
-              <!-- Column labels -->
-              <Border Grid.Row="1" Background="{Binding HeaderBackground}" Padding="16,9">
-                <Grid ColumnDefinitions="2*,0.8*,1*,1*,1.1*,1.1*,1.1*" ColumnSpacing="8">
-                  <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="程式名稱" />
-                  <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="狀態" />
-                  <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" Text="下載速度" />
-                  <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" Text="上傳速度" />
-                  <TextBlock Grid.Column="4" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="下載限制" />
-                  <TextBlock Grid.Column="5" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="上傳限制" />
-                  <TextBlock Grid.Column="6" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="操作" HorizontalAlignment="Center" />
-                </Grid>
-              </Border>
-
-              <Grid Grid.Row="2" MinHeight="260">
+            <Grid Grid.Row="2" MinHeight="200">
+              <ScrollViewer MaxHeight="440" VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding Processes}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProcessTrafficViewModel">
-                      <Border Classes="ui-process-row" Padding="16,10" BorderThickness="0,0,0,1" BorderBrush="#14FFFFFF">
-                        <Grid ColumnDefinitions="2*,0.8*,1*,1*,1.1*,1.1*,1.1*" ColumnSpacing="8">
-                          <!-- Name -->
-                          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                            <Border Width="30" Height="30" CornerRadius="8" Background="{Binding AvatarBrush}">
-                              <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                         FontWeight="Bold" FontSize="12" Foreground="White" Text="{Binding Initial}" />
+                      <Border Classes="ui-process-row" Padding="16,9" BorderThickness="0,0,0,1" BorderBrush="#14FFFFFF">
+                        <Grid ColumnDefinitions="2.2*,1*,1*,1.2*,1.2*,Auto" ColumnSpacing="10">
+                          <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                            <Border Width="28" Height="28" CornerRadius="7" Background="{Binding AvatarBrush}">
+                              <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="White" Text="{Binding Initial}" />
                             </Border>
-                            <StackPanel Spacing="1" VerticalAlignment="Center">
-                              <TextBlock FontWeight="SemiBold" FontSize="13" Text="{Binding ProcessName}" TextTrimming="CharacterEllipsis" />
-                              <TextBlock FontSize="10" Opacity="0.55" Text="{Binding Description}" TextTrimming="CharacterEllipsis" MaxWidth="220" />
-                            </StackPanel>
+                            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12" Text="{Binding ProcessName}" TextTrimming="CharacterEllipsis" />
                           </StackPanel>
-
-                          <!-- Status -->
-                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <Border Width="7" Height="7" CornerRadius="4" Background="#22C55E" VerticalAlignment="Center"
-                                    IsVisible="{Binding IsRunning}" />
-                            <Border Width="7" Height="7" CornerRadius="4" Background="#6B7C99" VerticalAlignment="Center"
-                                    IsVisible="{Binding !IsRunning}" />
-                            <TextBlock FontSize="12" Text="{Binding StatusText}" />
-                          </StackPanel>
-
-                          <!-- Speeds -->
-                          <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12"
-                                     Foreground="#60A5FA" Text="{Binding DownloadSpeedText}" />
-                          <TextBlock Grid.Column="3" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12"
-                                     Foreground="#4ADE80" Text="{Binding UploadSpeedText}" />
-
-                          <!-- Limits -->
-                          <ComboBox Grid.Column="4" Classes="ui-limit"
-                                    ItemsSource="{Binding LimitOptions}"
-                                    SelectedItem="{Binding SelectedDownloadLimit}"
-                                    VerticalAlignment="Center"
-                                    IsTextSearchEnabled="False"
-                                    MaxDropDownHeight="280" />
-                          <ComboBox Grid.Column="5" Classes="ui-limit"
-                                    ItemsSource="{Binding LimitOptions}"
-                                    SelectedItem="{Binding SelectedUploadLimit}"
-                                    VerticalAlignment="Center"
-                                    IsTextSearchEnabled="False"
-                                    MaxDropDownHeight="280" />
-
-                          <!-- Actions -->
-                          <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <ToggleSwitch Classes="ui-switch" IsChecked="{Binding IsLimitControlEnabled}"
-                                          ToolTip.Tip="啟用 / 停用此程式速度控管" />
-                            <TextBlock FontSize="10" Opacity="0.75" MaxWidth="100" Text="{Binding LimitStatusText}"
-                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                       ToolTip.Tip="{Binding LimitStatusText}" />
-                          </StackPanel>
-                        </Grid>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Background="{Binding PanelAltBackground}" BorderBrush="{Binding PanelBorder}"
-                        BorderThickness="1" CornerRadius="12" Padding="28,18"
-                        IsVisible="{Binding HasNoProcesses}">
-                  <StackPanel Spacing="6" MaxWidth="340">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Text="尚無程式流量" />
-                    <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" TextAlignment="Center"
-                               TextWrapping="Wrap" Text="{Binding ProcessStatusText}" />
-                  </StackPanel>
-                </Border>
-              </Grid>
-            </Grid>
-          </Border>
-
-          <!-- Processes / Limits dedicated page table -->
-          <Border Classes="ui-card"
-                  IsVisible="{Binding IsProcessesPage}">
-            <Grid RowDefinitions="Auto,Auto,*">
-              <Border Padding="16,14" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel Spacing="2">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding PageTitle}" />
-                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding ProcessDataSourceText}" />
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <TextBox Classes="ui-filter" Width="200" Watermark="搜尋程式" Text="{Binding SearchText}" />
-                    <CheckBox Classes="ui-check" IsChecked="{Binding ShowOnlyActive}" Content="有流量/已控管" VerticalAlignment="Center" />
-                    <Button Classes="ui-toolbar" Content="清除全部限速" Click="ClearAllLimitsButton_OnClick" />
-                  </StackPanel>
-                </Grid>
-              </Border>
-
-              <Border Grid.Row="1" Background="{Binding HeaderBackground}" Padding="16,9">
-                <Grid ColumnDefinitions="2*,0.8*,1*,1*,1.1*,1.1*,1.1*" ColumnSpacing="8">
-                  <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="程式名稱" />
-                  <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="狀態" />
-                  <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" Text="下載速度" />
-                  <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" Text="上傳速度" />
-                  <TextBlock Grid.Column="4" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="下載限制" />
-                  <TextBlock Grid.Column="5" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="上傳限制" />
-                  <TextBlock Grid.Column="6" FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="操作" HorizontalAlignment="Center" />
-                </Grid>
-              </Border>
-
-              <ScrollViewer Grid.Row="2" MaxHeight="520" VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Processes}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ProcessTrafficViewModel">
-                      <Border Classes="ui-process-row" Padding="16,10" BorderThickness="0,0,0,1" BorderBrush="#14FFFFFF">
-                        <Grid ColumnDefinitions="2*,0.8*,1*,1*,1.1*,1.1*,1.1*" ColumnSpacing="8">
-                          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                            <Border Width="30" Height="30" CornerRadius="8" Background="{Binding AvatarBrush}">
-                              <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                         FontWeight="Bold" FontSize="12" Foreground="White" Text="{Binding Initial}" />
-                            </Border>
-                            <TextBlock FontWeight="SemiBold" FontSize="13" Text="{Binding ProcessName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                          </StackPanel>
-                          <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="12" Text="{Binding StatusText}" />
-                          <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#60A5FA" Text="{Binding DownloadSpeedText}" />
-                          <TextBlock Grid.Column="3" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#4ADE80" Text="{Binding UploadSpeedText}" />
-                          <ComboBox Grid.Column="4" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedDownloadLimit}" VerticalAlignment="Center" IsTextSearchEnabled="False" MaxDropDownHeight="280" />
-                          <ComboBox Grid.Column="5" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedUploadLimit}" VerticalAlignment="Center" IsTextSearchEnabled="False" MaxDropDownHeight="280" />
-                          <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <ToggleSwitch Classes="ui-switch" IsChecked="{Binding IsLimitControlEnabled}" />
-                            <TextBlock FontSize="10" Opacity="0.65" MaxWidth="90" Text="{Binding LimitStatusText}" TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" ToolTip.Tip="{Binding LimitStatusText}" />
-                          </StackPanel>
+                          <TextBlock Grid.Column="1" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#60A5FA" Text="{Binding DownloadSpeedText}" />
+                          <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#4ADE80" Text="{Binding UploadSpeedText}" />
+                          <ComboBox Grid.Column="3" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedDownloadLimit}" VerticalAlignment="Center" IsTextSearchEnabled="False" MaxDropDownHeight="280" />
+                          <ComboBox Grid.Column="4" Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedUploadLimit}" VerticalAlignment="Center" IsTextSearchEnabled="False" MaxDropDownHeight="280" />
+                          <ToggleSwitch Grid.Column="5" Classes="ui-switch" IsChecked="{Binding IsLimitControlEnabled}" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="啟用或停用此程式的限速" />
                         </Grid>
                       </Border>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
-            </Grid>
-          </Border>
 
-          <!-- History stats -->
-          <Border Classes="ui-card" IsVisible="{Binding IsHistoryPage}" Padding="0">
-            <Grid RowDefinitions="Auto,*">
-              <Border Padding="16,14" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1">
-                <TextBlock FontSize="14" FontWeight="SemiBold" Text="流量統計" />
-              </Border>
-              <StackPanel Grid.Row="1" Margin="0,0,0,8">
-                <Border Background="{Binding HeaderBackground}" Padding="16,8">
-                  <Grid ColumnDefinitions="1.2*,1*,1*,1*">
-                    <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{Binding MutedTextBrush}" Text="週期" />
-                    <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" Text="下載" HorizontalAlignment="Right" />
-                    <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" Text="上傳" HorizontalAlignment="Right" />
-                    <TextBlock Grid.Column="3" FontSize="11" FontWeight="SemiBold" Foreground="{Binding SecondaryTextBrush}" Text="合計" HorizontalAlignment="Right" />
-                  </Grid>
-                </Border>
-                <Border Padding="16,9" Background="{Binding PanelAltBackground}">
-                  <Grid ColumnDefinitions="1.2*,1*,1*,1*">
-                    <TextBlock Text="Session" />
-                    <TextBlock Grid.Column="1" FontFamily="Consolas, monospace" Foreground="{Binding DownloadAccentBrush}" HorizontalAlignment="Right" Text="{Binding SessionDownloadText}" />
-                    <TextBlock Grid.Column="2" FontFamily="Consolas, monospace" Foreground="{Binding UploadAccentBrush}" HorizontalAlignment="Right" Text="{Binding SessionUploadText}" />
-                    <TextBlock Grid.Column="3" FontFamily="Consolas, monospace" HorizontalAlignment="Right" Text="{Binding SessionTotalText}" />
-                  </Grid>
-                </Border>
-                <Border Padding="16,9">
-                  <Grid ColumnDefinitions="1.2*,1*,1*,1*">
-                    <TextBlock Text="今日" />
-                    <TextBlock Grid.Column="1" FontFamily="Consolas, monospace" Foreground="{Binding DownloadAccentBrush}" HorizontalAlignment="Right" Text="{Binding TodayDownloadText}" />
-                    <TextBlock Grid.Column="2" FontFamily="Consolas, monospace" Foreground="{Binding UploadAccentBrush}" HorizontalAlignment="Right" Text="{Binding TodayUploadText}" />
-                    <TextBlock Grid.Column="3" FontFamily="Consolas, monospace" HorizontalAlignment="Right" Text="{Binding TodayTotalText}" />
-                  </Grid>
-                </Border>
-                <Border Padding="16,9" Background="{Binding PanelAltBackground}">
-                  <Grid ColumnDefinitions="1.2*,1*,1*,1*">
-                    <TextBlock Text="昨日" />
-                    <TextBlock Grid.Column="1" FontFamily="Consolas, monospace" Foreground="{Binding DownloadAccentBrush}" HorizontalAlignment="Right" Text="{Binding YesterdayDownloadText}" />
-                    <TextBlock Grid.Column="2" FontFamily="Consolas, monospace" Foreground="{Binding UploadAccentBrush}" HorizontalAlignment="Right" Text="{Binding YesterdayUploadText}" />
-                    <TextBlock Grid.Column="3" FontFamily="Consolas, monospace" HorizontalAlignment="Right" Text="{Binding YesterdayTotalText}" />
-                  </Grid>
-                </Border>
-                <Border Padding="16,9">
-                  <Grid ColumnDefinitions="1.2*,1*,1*,1*">
-                    <TextBlock Text="本週" />
-                    <TextBlock Grid.Column="1" FontFamily="Consolas, monospace" Foreground="{Binding DownloadAccentBrush}" HorizontalAlignment="Right" Text="{Binding WeekDownloadText}" />
-                    <TextBlock Grid.Column="2" FontFamily="Consolas, monospace" Foreground="{Binding UploadAccentBrush}" HorizontalAlignment="Right" Text="{Binding WeekUploadText}" />
-                    <TextBlock Grid.Column="3" FontFamily="Consolas, monospace" HorizontalAlignment="Right" Text="{Binding WeekTotalText}" />
-                  </Grid>
-                </Border>
-                <Border Padding="16,9" Background="{Binding PanelAltBackground}">
-                  <Grid ColumnDefinitions="1.2*,1*,1*,1*">
-                    <TextBlock Text="本月" />
-                    <TextBlock Grid.Column="1" FontFamily="Consolas, monospace" Foreground="{Binding DownloadAccentBrush}" HorizontalAlignment="Right" Text="{Binding MonthDownloadText}" />
-                    <TextBlock Grid.Column="2" FontFamily="Consolas, monospace" Foreground="{Binding UploadAccentBrush}" HorizontalAlignment="Right" Text="{Binding MonthUploadText}" />
-                    <TextBlock Grid.Column="3" FontFamily="Consolas, monospace" HorizontalAlignment="Right" Text="{Binding MonthTotalText}" />
-                  </Grid>
-                </Border>
-                <Border Padding="16,9">
-                  <Grid ColumnDefinitions="1.2*,1*,1*,1*">
-                    <TextBlock FontWeight="SemiBold" Text="累計" />
-                    <TextBlock Grid.Column="1" FontFamily="Consolas, monospace" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" HorizontalAlignment="Right" Text="{Binding AllTimeDownloadText}" />
-                    <TextBlock Grid.Column="2" FontFamily="Consolas, monospace" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" HorizontalAlignment="Right" Text="{Binding AllTimeUploadText}" />
-                    <TextBlock Grid.Column="3" FontFamily="Consolas, monospace" FontWeight="SemiBold" HorizontalAlignment="Right" Text="{Binding AllTimeTotalText}" />
-                  </Grid>
-                </Border>
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5" IsVisible="{Binding HasNoProcesses}">
+                <TextBlock FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Text="尚無程式網路流量" />
+                <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="{Binding ProcessStatusText}" />
               </StackPanel>
             </Grid>
-          </Border>
+          </Grid>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
 
-          <!-- Settings page -->
-          <Border Classes="ui-card" IsVisible="{Binding IsSettingsPage}" Padding="18">
-            <StackPanel Spacing="16" MaxWidth="640">
-              <TextBlock FontSize="14" FontWeight="SemiBold" Text="系統設定" />
-
-              <StackPanel Spacing="6">
-                <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="網路介面" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <ComboBox Classes="ui-filter" Width="360" ItemsSource="{Binding NetworkInterfaces}" SelectedItem="{Binding SelectedInterface}" />
-                  <Button Classes="ui-toolbar" Content="重新整理" Click="RefreshInterfacesButton_OnClick" />
-                </StackPanel>
-              </StackPanel>
-
-              <StackPanel Spacing="6">
-                <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="外觀主題" />
-                <ComboBox Classes="ui-filter" Width="260" SelectedItem="{Binding SelectedUiTheme}" ItemsSource="{Binding UiThemes}" />
-              </StackPanel>
-
-              <StackPanel Spacing="8">
-                <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="資料匯出" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button Classes="ui-toolbar" Content="匯出 CSV" Click="ExportCsvButton_OnClick" />
-                  <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{Binding MutedTextBrush}" Text="{Binding ExportStatusText}" />
-                </StackPanel>
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding LogCountText}" />
-              </StackPanel>
-
-              <StackPanel Spacing="8">
-                <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="版本" />
-                <TextBlock FontSize="12" FontFamily="Consolas, monospace" Text="{Binding AppBuildInfoText}" />
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" TextWrapping="Wrap"
-                           Text="若版本不是 v1.2.4，代表開到舊檔（例如 artifacts 發佈包）。請關閉所有 NetWatcher 後只開啟最新建置。" />
-              </StackPanel>
-
-              <StackPanel Spacing="8">
-                <TextBlock FontSize="12" Foreground="{Binding SecondaryTextBrush}" Text="限速引擎" />
-                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding AdminStatusText}" />
-                <TextBlock FontSize="12" Foreground="{Binding MutedTextBrush}" TextWrapping="Wrap" Text="{Binding LimitEngineStatusText}" />
-                <TextBlock FontSize="12" Foreground="{Binding MutedTextBrush}" TextWrapping="Wrap" Text="{Binding IntegratedHelpText}" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button Classes="ui-toolbar" Content="以系統管理員重新啟動"
-                          IsVisible="{Binding NeedsAdminForLimits}"
-                          Click="RestartAsAdminButton_OnClick" />
-                  <Button Classes="ui-toolbar" Content="重新啟動 ETW" Click="RetryEtwButton_OnClick"
-                          ToolTip.Tip="清理殘留 ETW 工作階段後重試（可解決 0x800705AA）" />
-                  <Button Classes="ui-toolbar" Content="清除所有優先級 / 限速" Click="ClearAllLimitsButton_OnClick" />
-                </StackPanel>
-              </StackPanel>
-            </StackPanel>
-          </Border>
-
-          <!-- Compact session totals under overview -->
-          <Border Classes="ui-card" Padding="14,12" IsVisible="{Binding IsOverviewPage}">
-            <Grid ColumnDefinitions="2*,1*,1*,1*,1*" ColumnSpacing="12">
-              <StackPanel Spacing="2">
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="網路介面" />
-                <TextBlock FontSize="12" Text="{Binding FooterInterfaceText}" TextTrimming="CharacterEllipsis" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Spacing="2">
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="IP 位址" />
-                <TextBlock FontSize="12" FontFamily="Consolas, monospace" Text="{Binding LocalIpAddress}" />
-              </StackPanel>
-              <StackPanel Grid.Column="2" Spacing="2">
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="總下載" />
-                <TextBlock FontSize="12" Foreground="{Binding DownloadAccentBrush}" Text="{Binding SessionDownloadText}" />
-              </StackPanel>
-              <StackPanel Grid.Column="3" Spacing="2">
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="總上傳" />
-                <TextBlock FontSize="12" Foreground="{Binding UploadAccentBrush}" Text="{Binding SessionUploadText}" />
-              </StackPanel>
-              <StackPanel Grid.Column="4" Spacing="2">
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="連線狀態" />
-                <TextBlock FontSize="12" Foreground="{Binding ConnectionStatusBrush}" Text="{Binding ConnectionStatusText}" />
-              </StackPanel>
-            </Grid>
-          </Border>
-
-        </StackPanel>
-      </ScrollViewer>
-
-      <!-- Bottom status bar -->
-      <Border Grid.Row="2" Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,1,0,0" Padding="18,8">
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="16">
-          <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding ProcessDataSourceText}" TextTrimming="CharacterEllipsis" />
-          <TextBlock Grid.Column="1" FontSize="11" Foreground="{Binding DownloadAccentBrush}" FontFamily="Consolas, monospace"
-                     Text="{Binding TotalDownloadSpeedText, StringFormat=↓ {0}}" />
-          <TextBlock Grid.Column="2" FontSize="11" Foreground="{Binding UploadAccentBrush}" FontFamily="Consolas, monospace"
-                     Text="{Binding TotalUploadSpeedText, StringFormat=↑ {0}}" />
-          <TextBlock Grid.Column="3" FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding TodayTotalText, StringFormat=今日 {0}}" />
-          <TextBlock Grid.Column="4" FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding ExportStatusText}" />
-        </Grid>
-      </Border>
-    </Grid>
+    <Border Grid.Row="3" Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,1,0,0" Padding="16,8">
+      <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="限速單位：MB/s · 設為「不限速」即可解除單向限制" />
+    </Border>
   </Grid>
 </Window>
