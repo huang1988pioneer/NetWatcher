@@ -7,15 +7,15 @@ Windows builds include per-process traffic via ETW network events.
 
 Latest release:
 
-- [NetWatcher v1.2.10](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.10)
+- [NetWatcher v1.2.11](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.11)
 
 Release assets:
 
-- `NetWatcher-v1.2.10-win-x64.zip`
-- `NetWatcher-v1.2.10-macos-arm64.zip`
-- `NetWatcher-v1.2.10-macos-x64.zip`
-- `NetWatcher-v1.2.10-linux-x64.zip`
-- `NetWatcher-v1.2.10-linux-arm64.zip`
+- `NetWatcher-v1.2.11-win-x64.zip`
+- `NetWatcher-v1.2.11-macos-arm64.zip`
+- `NetWatcher-v1.2.11-macos-x64.zip`
+- `NetWatcher-v1.2.11-linux-x64.zip`
+- `NetWatcher-v1.2.11-linux-arm64.zip`
 
 ## Features
 
@@ -62,13 +62,13 @@ Settings → 外觀主題:
 ## Requirements
 
 - Windows 10/11, macOS Apple Silicon / Intel, or Linux x64 / arm64
-- Administrator permission on Windows for per-process ETW + packet speed limits
+- Windows builds request administrator via UAC by default (required for ETW + packet speed limits)
 
 ## Quick Start
 
 1. Download the zip for your platform from the latest release.
 2. Extract the zip.
-3. On Windows, run `NetWatcher.App.exe` as administrator.
+3. On Windows, run `NetWatcher.App.exe` (UAC will prompt for administrator by default).
 4. On macOS / Linux, run `chmod +x NetWatcher.App`, then start `./NetWatcher.App`.
 5. Watch live speed cards; set per-process limits from the table (Windows).
 
@@ -83,26 +83,26 @@ dotnet build NetWatcher.App.csproj -c Release
 Publish Windows release:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\win-x64
-Compress-Archive -Path .\artifacts\release\v1.2.10\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-win-x64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.11\win-x64
+Compress-Archive -Path .\artifacts\release\v1.2.11\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.11-win-x64.zip -Force
 ```
 
 Publish macOS releases:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\macos-arm64
-dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\macos-x64
-Compress-Archive -Path .\artifacts\release\v1.2.10\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-macos-arm64.zip -Force
-Compress-Archive -Path .\artifacts\release\v1.2.10\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-macos-x64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.11\macos-arm64
+dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.11\macos-x64
+Compress-Archive -Path .\artifacts\release\v1.2.11\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.11-macos-arm64.zip -Force
+Compress-Archive -Path .\artifacts\release\v1.2.11\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.11-macos-x64.zip -Force
 ```
 
 Publish Linux releases:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\linux-x64
-dotnet publish NetWatcher.App.csproj -c Release -r linux-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\linux-arm64
-Compress-Archive -Path .\artifacts\release\v1.2.10\linux-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-linux-x64.zip -Force
-Compress-Archive -Path .\artifacts\release\v1.2.10\linux-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-linux-arm64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.11\linux-x64
+dotnet publish NetWatcher.App.csproj -c Release -r linux-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.11\linux-arm64
+Compress-Archive -Path .\artifacts\release\v1.2.11\linux-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.11-linux-x64.zip -Force
+Compress-Archive -Path .\artifacts\release\v1.2.11\linux-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.11-linux-arm64.zip -Force
 ```
 
 ## Notes
