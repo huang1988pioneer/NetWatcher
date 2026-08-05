@@ -19,7 +19,7 @@
     <vm:MainWindowViewModel />
   </Design.DataContext>
 
-  <Grid RowDefinitions="Auto,Auto,*,Auto">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
     <Border Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1" Padding="20,14">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Spacing="2">
@@ -45,89 +45,28 @@
       </Grid>
     </Border>
 
-    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16,12">
+    <!-- Fixed download / upload summary (stays visible while content scrolls) -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12" Margin="16,12,16,0">
+      <Border Classes="ui-card" Background="{Binding DownloadCardBackground}" Padding="18,16">
+        <StackPanel Spacing="7">
+          <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" Text="↓ 下載速度" />
+          <TextBlock FontSize="34" FontWeight="SemiBold" FontFamily="Segoe UI, Consolas, monospace"
+                     Foreground="{Binding DownloadAccentBrush}" Text="{Binding TotalDownloadSpeedText}" />
+          <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="即時總下載速度 · MB/s" />
+        </StackPanel>
+      </Border>
+      <Border Grid.Column="1" Classes="ui-card" Background="{Binding UploadCardBackground}" Padding="18,16">
+        <StackPanel Spacing="7">
+          <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" Text="↑ 上傳速度" />
+          <TextBlock FontSize="34" FontWeight="SemiBold" FontFamily="Segoe UI, Consolas, monospace"
+                     Foreground="{Binding UploadAccentBrush}" Text="{Binding TotalUploadSpeedText}" />
+          <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="即時總上傳速度 · MB/s" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16,12">
       <StackPanel Spacing="14">
-        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-          <Border Classes="ui-card" Background="{Binding DownloadCardBackground}" Padding="18,16">
-            <StackPanel Spacing="7">
-              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding DownloadAccentBrush}" Text="↓ 下載速度" />
-              <TextBlock FontSize="34" FontWeight="SemiBold" FontFamily="Segoe UI, Consolas, monospace"
-                         Foreground="{Binding DownloadAccentBrush}" Text="{Binding TotalDownloadSpeedText}" />
-              <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="即時總下載速度 · MB/s" />
-            </StackPanel>
-          </Border>
-          <Border Grid.Column="1" Classes="ui-card" Background="{Binding UploadCardBackground}" Padding="18,16">
-            <StackPanel Spacing="7">
-              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{Binding UploadAccentBrush}" Text="↑ 上傳速度" />
-              <TextBlock FontSize="34" FontWeight="SemiBold" FontFamily="Segoe UI, Consolas, monospace"
-                         Foreground="{Binding UploadAccentBrush}" Text="{Binding TotalUploadSpeedText}" />
-              <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="即時總上傳速度 · MB/s" />
-            </StackPanel>
-          </Border>
-        </Grid>
-
-        <!-- Speedtest-style panel -->
-        <Border Classes="ui-card" Padding="18,16">
-          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
-            <StackPanel Spacing="10" VerticalAlignment="Center" MinWidth="130">
-              <TextBlock FontSize="13" FontWeight="SemiBold" Text="網路測速" />
-              <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding SpeedTestActionHint}" TextWrapping="Wrap" MaxWidth="140" />
-              <Button Classes="ui-speedtest-go"
-                      Content="{Binding SpeedTestButtonText}"
-                      Click="SpeedTestButton_OnClick"
-                      ToolTip.Tip="開始或取消測速" />
-              <TextBlock FontSize="12" FontWeight="SemiBold" FontFamily="Consolas, monospace"
-                         Foreground="{Binding DownloadAccentBrush}"
-                         HorizontalAlignment="Center"
-                         Text="{Binding SpeedTestLiveSpeedText}" />
-              <ProgressBar Minimum="0" Maximum="100" Height="4" MinWidth="120"
-                           Value="{Binding SpeedTestProgressPercent}"
-                           Foreground="#38BDF8" Background="#1A2A42" />
-            </StackPanel>
-
-            <StackPanel Grid.Column="1" Spacing="12" VerticalAlignment="Center">
-              <StackPanel Spacing="2">
-                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SpeedTestStatusText}" TextWrapping="Wrap" />
-                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding SpeedTestServerText}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-              </StackPanel>
-
-              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
-                <Border Classes="ui-metric" Padding="12,10">
-                  <StackPanel Spacing="4">
-                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="延遲 Ping" />
-                    <TextBlock FontSize="22" FontWeight="SemiBold" FontFamily="Consolas, monospace"
-                               Foreground="#FBBF24" Text="{Binding SpeedTestPingText}" />
-                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}"
-                               Text="{Binding SpeedTestJitterText}" />
-                  </StackPanel>
-                </Border>
-                <Border Grid.Column="1" Classes="ui-metric" Padding="12,10">
-                  <StackPanel Spacing="4">
-                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="下載 Download" />
-                    <TextBlock FontSize="22" FontWeight="SemiBold" FontFamily="Consolas, monospace"
-                               Foreground="{Binding DownloadAccentBrush}" Text="{Binding SpeedTestDownloadText}" />
-                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding SpeedTestDownloadDetailText}" />
-                  </StackPanel>
-                </Border>
-                <Border Grid.Column="2" Classes="ui-metric" Padding="12,10">
-                  <StackPanel Spacing="4">
-                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="上傳 Upload" />
-                    <TextBlock FontSize="22" FontWeight="SemiBold" FontFamily="Consolas, monospace"
-                               Foreground="{Binding UploadAccentBrush}" Text="{Binding SpeedTestUploadText}" />
-                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding SpeedTestUploadDetailText}" />
-                  </StackPanel>
-                </Border>
-              </Grid>
-            </StackPanel>
-
-            <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center" MinWidth="72">
-              <TextBlock FontSize="10" Foreground="{Binding MutedTextBrush}" HorizontalAlignment="Center" Text="單位" />
-              <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" HorizontalAlignment="Center" Text="Mbps" />
-              <TextBlock FontSize="10" Foreground="{Binding MutedTextBrush}" HorizontalAlignment="Center" Text="≈ Speedtest" />
-            </StackPanel>
-          </Grid>
-        </Border>
-
         <Border Classes="ui-card">
           <Grid RowDefinitions="Auto,Auto,*">
             <Border Padding="16,12" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1">
@@ -193,10 +132,72 @@
             </Grid>
           </Grid>
         </Border>
+
+        <!-- Speedtest-style panel (bottom) -->
+        <Border Classes="ui-card" Padding="18,16">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
+            <StackPanel Spacing="10" VerticalAlignment="Center" MinWidth="130">
+              <TextBlock FontSize="13" FontWeight="SemiBold" Text="網路測速" />
+              <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding SpeedTestActionHint}" TextWrapping="Wrap" MaxWidth="140" />
+              <Button Classes="ui-speedtest-go"
+                      Content="{Binding SpeedTestButtonText}"
+                      Click="SpeedTestButton_OnClick"
+                      ToolTip.Tip="開始或取消測速" />
+              <TextBlock FontSize="12" FontWeight="SemiBold" FontFamily="Consolas, monospace"
+                         Foreground="{Binding DownloadAccentBrush}"
+                         HorizontalAlignment="Center"
+                         Text="{Binding SpeedTestLiveSpeedText}" />
+              <ProgressBar Minimum="0" Maximum="100" Height="4" MinWidth="120"
+                           Value="{Binding SpeedTestProgressPercent}"
+                           Foreground="#38BDF8" Background="#1A2A42" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="12" VerticalAlignment="Center">
+              <StackPanel Spacing="2">
+                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SpeedTestStatusText}" TextWrapping="Wrap" />
+                <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding SpeedTestServerText}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                <Border Classes="ui-metric" Padding="12,10">
+                  <StackPanel Spacing="4">
+                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="延遲 Ping" />
+                    <TextBlock FontSize="22" FontWeight="SemiBold" FontFamily="Consolas, monospace"
+                               Foreground="#FBBF24" Text="{Binding SpeedTestPingText}" />
+                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}"
+                               Text="{Binding SpeedTestJitterText}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Classes="ui-metric" Padding="12,10">
+                  <StackPanel Spacing="4">
+                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="下載 Download" />
+                    <TextBlock FontSize="22" FontWeight="SemiBold" FontFamily="Consolas, monospace"
+                               Foreground="{Binding DownloadAccentBrush}" Text="{Binding SpeedTestDownloadText}" />
+                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding SpeedTestDownloadDetailText}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Classes="ui-metric" Padding="12,10">
+                  <StackPanel Spacing="4">
+                    <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="上傳 Upload" />
+                    <TextBlock FontSize="22" FontWeight="SemiBold" FontFamily="Consolas, monospace"
+                               Foreground="{Binding UploadAccentBrush}" Text="{Binding SpeedTestUploadText}" />
+                    <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" Text="{Binding SpeedTestUploadDetailText}" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center" MinWidth="72">
+              <TextBlock FontSize="10" Foreground="{Binding MutedTextBrush}" HorizontalAlignment="Center" Text="單位" />
+              <TextBlock FontSize="11" Foreground="{Binding SecondaryTextBrush}" HorizontalAlignment="Center" Text="Mbps" />
+              <TextBlock FontSize="10" Foreground="{Binding MutedTextBrush}" HorizontalAlignment="Center" Text="≈ Speedtest" />
+            </StackPanel>
+          </Grid>
+        </Border>
       </StackPanel>
     </ScrollViewer>
 
-    <Border Grid.Row="3" Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,1,0,0" Padding="16,8">
+    <Border Grid.Row="4" Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,1,0,0" Padding="16,8">
       <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding LimitFooterText}" />
     </Border>
   </Grid>
