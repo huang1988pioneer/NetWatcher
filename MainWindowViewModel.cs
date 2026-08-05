@@ -893,6 +893,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 {
                     ProcessName = process.ProcessName
                 };
+                vm.TouchActivity();
                 vm.LimitSettingsChanged += OnProcessLimitSettingsChangedAsync;
                 vm.LoadLimitSettings(_limitSettingsStore.GetOrCreate(process.ProcessName));
                 _processMap[key] = vm;
@@ -905,6 +906,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 process.UploadBytesPerSecond);
         }
 
+        // Keep rows for at least IdleRetention after last traffic so they do not
+        // vanish the instant a download pauses or the sample interval reports 0.
         foreach (var pair in _processMap.ToList())
         {
             if (seen.Contains(pair.Key))
@@ -912,7 +915,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            if (pair.Value.HasActiveLimit)
+            if (pair.Value.HasActiveLimit || pair.Value.ShouldRemainVisible)
             {
                 pair.Value.UpdateTraffic(pair.Value.ProcessId, pair.Value.Description, 0, 0);
                 continue;
@@ -1300,10 +1303,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         else if (ShowOnlyActive)
         {
-            query = query.Where(x =>
-                x.DownloadBytesPerSecond > 0 ||
-                x.UploadBytesPerSecond > 0 ||
-                x.HasActiveLimit);
+            // Include recent idle rows (30s grace) so brief 0-rate samples do not hide apps.
+            query = query.Where(x => x.ShouldRemainVisible);
         }
 
         if (!string.IsNullOrWhiteSpace(SearchText))

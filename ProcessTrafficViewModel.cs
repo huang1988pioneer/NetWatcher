@@ -30,10 +30,14 @@ public sealed class ProcessTrafficViewModel : ObservableObject
     private bool _suppressLimitEvents;
     private string _statusText = "閒置";
     private bool _isRunning;
+    private DateTimeOffset _lastActivityUtc = DateTimeOffset.UtcNow;
     private TrafficPriorityOption _selectedPriority = TrafficPriorityOption.All[1];
     private SpeedLimitOption _selectedDownloadLimit = SpeedLimitOption.Presets[0];
     private SpeedLimitOption _selectedUploadLimit = SpeedLimitOption.Presets[0];
     private IBrush _avatarBrush = new SolidColorBrush(Color.Parse("#3B82F6"));
+
+    /// <summary>How long a process row stays after traffic drops to zero.</summary>
+    public static readonly TimeSpan IdleRetention = TimeSpan.FromSeconds(30);
 
     public event Func<ProcessTrafficViewModel, Task>? LimitSettingsChanged;
 
@@ -298,11 +302,25 @@ public sealed class ProcessTrafficViewModel : ObservableObject
 
     public double TotalBytesPerSecond => DownloadBytesPerSecond + UploadBytesPerSecond;
 
+    /// <summary>UTC timestamp of the last non-zero traffic sample (or first sighting).</summary>
+    public DateTimeOffset LastActivityUtc
+    {
+        get => _lastActivityUtc;
+        private set => SetProperty(ref _lastActivityUtc, value);
+    }
+
     public bool HasActiveLimit =>
         IsLimitControlEnabled &&
         (IsDownloadLimitEnabled ||
          IsUploadLimitEnabled ||
          SelectedPriority.Priority is not TrafficPriority.Normal);
+
+    /// <summary>True while traffic is flowing, limits are on, or still within the idle grace window.</summary>
+    public bool ShouldRemainVisible =>
+        HasActiveLimit ||
+        DownloadBytesPerSecond > 0 ||
+        UploadBytesPerSecond > 0 ||
+        DateTimeOffset.UtcNow - LastActivityUtc < IdleRetention;
 
     public string PriorityBadgeText => SelectedPriority.Label;
 
@@ -330,13 +348,24 @@ public sealed class ProcessTrafficViewModel : ObservableObject
         UploadSpeedText = TrafficFormatter.FormatSpeed(uploadBps);
 
         var active = downloadBps > 0 || uploadBps > 0;
-        IsRunning = active || HasActiveLimit;
+        if (active)
+        {
+            LastActivityUtc = DateTimeOffset.UtcNow;
+        }
+
+        var withinGrace = DateTimeOffset.UtcNow - LastActivityUtc < IdleRetention;
+        IsRunning = active || HasActiveLimit || withinGrace;
         StatusText = active
             ? "執行中"
             : HasActiveLimit
                 ? "已控管"
-                : "閒置";
+                : withinGrace
+                    ? "稍候"
+                    : "閒置";
     }
+
+    /// <summary>Mark first appearance so the 30s retention window starts now.</summary>
+    public void TouchActivity() => LastActivityUtc = DateTimeOffset.UtcNow;
 
     public void LoadLimitSettings(ProcessLimitSettings settings)
     {
