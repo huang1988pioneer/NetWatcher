@@ -83,11 +83,14 @@ public sealed record TrafficPriorityOption(TrafficPriority Priority, string Labe
 }
 
 /// <summary>MB/s preset used by dashboard limit ComboBoxes (binary megabytes/s).</summary>
-public sealed record SpeedLimitOption(double MegaBytesPerSecond, string Label)
+public sealed record SpeedLimitOption(double MegaBytesPerSecond, string Label, bool IsCustom = false)
 {
     public override string ToString() => Label;
 
-    public bool IsUnlimited => MegaBytesPerSecond <= 0;
+    public bool IsUnlimited => !IsCustom && MegaBytesPerSecond <= 0;
+
+    /// <summary>Sentinel for free-form MB/s entry under the preset list.</summary>
+    public static SpeedLimitOption Custom { get; } = new(0, "自訂…", IsCustom: true);
 
     public static IReadOnlyList<SpeedLimitOption> Presets { get; } =
     [
@@ -100,7 +103,8 @@ public sealed record SpeedLimitOption(double MegaBytesPerSecond, string Label)
         new(5, "5 MB/s"),
         new(10, "10 MB/s"),
         new(20, "20 MB/s"),
-        new(50, "50 MB/s")
+        new(50, "50 MB/s"),
+        Custom
     ];
 
     public static SpeedLimitOption FromKbps(double kbps)
@@ -111,8 +115,10 @@ public sealed record SpeedLimitOption(double MegaBytesPerSecond, string Label)
         }
 
         var mbps = TrafficFormatter.KbpsToMBps(kbps);
-        var match = Presets.FirstOrDefault(p => Math.Abs(p.MegaBytesPerSecond - mbps) < 0.02);
-        return match ?? Presets.OrderBy(p => Math.Abs(p.MegaBytesPerSecond - mbps)).First();
+        var match = Presets.FirstOrDefault(p =>
+            !p.IsCustom && Math.Abs(p.MegaBytesPerSecond - mbps) < 0.001);
+        // Preserve non-preset values as 自訂 instead of snapping to the nearest option.
+        return match ?? Custom;
     }
 }
 

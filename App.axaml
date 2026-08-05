@@ -102,6 +102,18 @@
       <Setter Property="Padding" Value="8,2" />
     </Style>
 
+    <Style Selector="TextBox.ui-limit-custom">
+      <Setter Property="Background" Value="#0F1A2C" />
+      <Setter Property="Foreground" Value="#D6E2F2" />
+      <Setter Property="BorderBrush" Value="#2A3F60" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="FontFamily" Value="Consolas, monospace" />
+    </Style>
+
     <Style Selector="ComboBox.ui-priority">
       <Setter Property="Background" Value="#162238" />
       <Setter Property="Foreground" Value="#E8EEF5" />

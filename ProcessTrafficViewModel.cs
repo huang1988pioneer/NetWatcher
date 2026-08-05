@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Media;
 
 namespace NetWatcher.App;
@@ -19,6 +20,8 @@ public sealed class ProcessTrafficViewModel : ObservableObject
     private double _uploadBytesPerSecond;
     private string _downloadLimitKbpsText = "";
     private string _uploadLimitKbpsText = "";
+    private string _downloadLimitMbpsText = "";
+    private string _uploadLimitMbpsText = "";
     private bool _isDownloadLimitEnabled;
     private bool _isUploadLimitEnabled;
     private bool _isLimitControlEnabled = true;
@@ -111,6 +114,36 @@ public sealed class ProcessTrafficViewModel : ObservableObject
         }
     }
 
+    /// <summary>Free-form download limit in MB/s (shown under the preset ComboBox).</summary>
+    public string DownloadLimitMbpsText
+    {
+        get => _downloadLimitMbpsText;
+        set
+        {
+            if (!SetProperty(ref _downloadLimitMbpsText, value) || _suppressLimitEvents)
+            {
+                return;
+            }
+
+            ApplyCustomMbpsInput(isDownload: true, value);
+        }
+    }
+
+    /// <summary>Free-form upload limit in MB/s (shown under the preset ComboBox).</summary>
+    public string UploadLimitMbpsText
+    {
+        get => _uploadLimitMbpsText;
+        set
+        {
+            if (!SetProperty(ref _uploadLimitMbpsText, value) || _suppressLimitEvents)
+            {
+                return;
+            }
+
+            ApplyCustomMbpsInput(isDownload: false, value);
+        }
+    }
+
     public bool IsDownloadLimitEnabled
     {
         get => _isDownloadLimitEnabled;
@@ -161,18 +194,16 @@ public sealed class ProcessTrafficViewModel : ObservableObject
             if (SetProperty(ref _selectedDownloadLimit, value) && !_suppressLimitEvents)
             {
                 _suppressLimitEvents = true;
-                var kbps = value.IsUnlimited ? 0 : TrafficFormatter.MBpsToKbps(value.MegaBytesPerSecond);
-                DownloadLimitKbpsText = kbps > 0 ? kbps.ToString("0.##") : string.Empty;
-                IsDownloadLimitEnabled = !value.IsUnlimited;
-                if (!value.IsUnlimited || !SelectedUploadLimit.IsUnlimited)
-                {
-                    SelectedPriority = TrafficPriorityOption.All.First(x => x.Priority == TrafficPriority.Limit);
-                }
-                else if (SelectedPriority.Priority == TrafficPriority.Limit)
-                {
-                    SelectedPriority = TrafficPriorityOption.All.First(x => x.Priority == TrafficPriority.Normal);
-                }
-
+                SyncFromSelectedOption(
+                    value,
+                    setMbps: v => _downloadLimitMbpsText = v,
+                    setKbps: v => _downloadLimitKbpsText = v,
+                    setEnabled: v => _isDownloadLimitEnabled = v,
+                    nameof(DownloadLimitMbpsText),
+                    nameof(DownloadLimitKbpsText),
+                    nameof(IsDownloadLimitEnabled),
+                    _downloadLimitMbpsText);
+                SyncPriorityFromLimits();
                 _suppressLimitEvents = false;
                 _ = RaiseLimitSettingsChangedAsync();
             }
@@ -192,18 +223,16 @@ public sealed class ProcessTrafficViewModel : ObservableObject
             if (SetProperty(ref _selectedUploadLimit, value) && !_suppressLimitEvents)
             {
                 _suppressLimitEvents = true;
-                var kbps = value.IsUnlimited ? 0 : TrafficFormatter.MBpsToKbps(value.MegaBytesPerSecond);
-                UploadLimitKbpsText = kbps > 0 ? kbps.ToString("0.##") : string.Empty;
-                IsUploadLimitEnabled = !value.IsUnlimited;
-                if (!value.IsUnlimited || !SelectedDownloadLimit.IsUnlimited)
-                {
-                    SelectedPriority = TrafficPriorityOption.All.First(x => x.Priority == TrafficPriority.Limit);
-                }
-                else if (SelectedPriority.Priority == TrafficPriority.Limit)
-                {
-                    SelectedPriority = TrafficPriorityOption.All.First(x => x.Priority == TrafficPriority.Normal);
-                }
-
+                SyncFromSelectedOption(
+                    value,
+                    setMbps: v => _uploadLimitMbpsText = v,
+                    setKbps: v => _uploadLimitKbpsText = v,
+                    setEnabled: v => _isUploadLimitEnabled = v,
+                    nameof(UploadLimitMbpsText),
+                    nameof(UploadLimitKbpsText),
+                    nameof(IsUploadLimitEnabled),
+                    _uploadLimitMbpsText);
+                SyncPriorityFromLimits();
                 _suppressLimitEvents = false;
                 _ = RaiseLimitSettingsChangedAsync();
             }
@@ -227,8 +256,8 @@ public sealed class ProcessTrafficViewModel : ObservableObject
                 if (value.Priority == TrafficPriority.Limit)
                 {
                     _suppressLimitEvents = true;
-                    IsDownloadLimitEnabled = ParseKbps(DownloadLimitKbpsText) > 0;
-                    IsUploadLimitEnabled = ParseKbps(UploadLimitKbpsText) > 0;
+                    IsDownloadLimitEnabled = ResolveLimitKbps(SelectedDownloadLimit, DownloadLimitMbpsText) > 0;
+                    IsUploadLimitEnabled = ResolveLimitKbps(SelectedUploadLimit, UploadLimitMbpsText) > 0;
                     _suppressLimitEvents = false;
                 }
 
@@ -314,14 +343,29 @@ public sealed class ProcessTrafficViewModel : ObservableObject
         _suppressLimitEvents = true;
         try
         {
-            DownloadLimitKbpsText = settings.DownloadLimitKbps > 0 ? settings.DownloadLimitKbps.ToString("0.##") : string.Empty;
-            UploadLimitKbpsText = settings.UploadLimitKbps > 0 ? settings.UploadLimitKbps.ToString("0.##") : string.Empty;
-            IsDownloadLimitEnabled = settings.DownloadLimitEnabled;
-            IsUploadLimitEnabled = settings.UploadLimitEnabled;
-            IsLimitControlEnabled = settings.IsLimitControlEnabled;
-            SelectedPriority = TrafficPriorityOption.FromName(settings.Priority);
+            _downloadLimitKbpsText = settings.DownloadLimitKbps > 0
+                ? settings.DownloadLimitKbps.ToString("0.##", CultureInfo.InvariantCulture)
+                : string.Empty;
+            _uploadLimitKbpsText = settings.UploadLimitKbps > 0
+                ? settings.UploadLimitKbps.ToString("0.##", CultureInfo.InvariantCulture)
+                : string.Empty;
+            _downloadLimitMbpsText = FormatMbpsField(TrafficFormatter.KbpsToMBps(settings.DownloadLimitKbps));
+            _uploadLimitMbpsText = FormatMbpsField(TrafficFormatter.KbpsToMBps(settings.UploadLimitKbps));
+            _isDownloadLimitEnabled = settings.DownloadLimitEnabled;
+            _isUploadLimitEnabled = settings.UploadLimitEnabled;
+            _isLimitControlEnabled = settings.IsLimitControlEnabled;
+            _selectedPriority = TrafficPriorityOption.FromName(settings.Priority);
             _selectedDownloadLimit = SpeedLimitOption.FromKbps(settings.DownloadLimitKbps);
             _selectedUploadLimit = SpeedLimitOption.FromKbps(settings.UploadLimitKbps);
+
+            RaisePropertyChanged(nameof(DownloadLimitKbpsText));
+            RaisePropertyChanged(nameof(UploadLimitKbpsText));
+            RaisePropertyChanged(nameof(DownloadLimitMbpsText));
+            RaisePropertyChanged(nameof(UploadLimitMbpsText));
+            RaisePropertyChanged(nameof(IsDownloadLimitEnabled));
+            RaisePropertyChanged(nameof(IsUploadLimitEnabled));
+            RaisePropertyChanged(nameof(IsLimitControlEnabled));
+            RaisePropertyChanged(nameof(SelectedPriority));
             RaisePropertyChanged(nameof(SelectedDownloadLimit));
             RaisePropertyChanged(nameof(SelectedUploadLimit));
             LimitStatusText = SelectedPriority.Priority == TrafficPriority.Normal && !HasActiveLimit
@@ -339,18 +383,19 @@ public sealed class ProcessTrafficViewModel : ObservableObject
 
     public ProcessLimitSettings ToLimitSettings()
     {
+        var downloadKbps = ResolveLimitKbps(SelectedDownloadLimit, DownloadLimitMbpsText);
+        var uploadKbps = ResolveLimitKbps(SelectedUploadLimit, UploadLimitMbpsText);
+
         return new ProcessLimitSettings
         {
-            DownloadLimitKbps = SelectedDownloadLimit.IsUnlimited
-                ? ParseKbps(DownloadLimitKbpsText)
-                : TrafficFormatter.MBpsToKbps(SelectedDownloadLimit.MegaBytesPerSecond),
-            UploadLimitKbps = SelectedUploadLimit.IsUnlimited
-                ? ParseKbps(UploadLimitKbpsText)
-                : TrafficFormatter.MBpsToKbps(SelectedUploadLimit.MegaBytesPerSecond),
+            DownloadLimitKbps = downloadKbps,
+            UploadLimitKbps = uploadKbps,
             DownloadLimitEnabled = IsLimitControlEnabled &&
-                                   (IsDownloadLimitEnabled || !SelectedDownloadLimit.IsUnlimited),
+                                   (downloadKbps > 0 || IsDownloadLimitEnabled ||
+                                    SelectedDownloadLimit.IsCustom || !SelectedDownloadLimit.IsUnlimited),
             UploadLimitEnabled = IsLimitControlEnabled &&
-                                 (IsUploadLimitEnabled || !SelectedUploadLimit.IsUnlimited),
+                                 (uploadKbps > 0 || IsUploadLimitEnabled ||
+                                  SelectedUploadLimit.IsCustom || !SelectedUploadLimit.IsUnlimited),
             Priority = SelectedPriority.Priority.ToString(),
             IsLimitControlEnabled = IsLimitControlEnabled
         };
@@ -363,8 +408,165 @@ public sealed class ProcessTrafficViewModel : ObservableObject
             return 0;
         }
 
-        return double.TryParse(text.Trim(), out var value) && value > 0 ? value : 0;
+        return double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+               || double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out value)
+            ? value > 0 ? value : 0
+            : 0;
     }
+
+    public static double ParseMbps(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return 0;
+        }
+
+        var trimmed = text.Trim();
+        // Allow "3", "3.5", "3,5", or "3 MB/s".
+        trimmed = trimmed.Replace("MB/s", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("MBps", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("mb", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ||
+            double.TryParse(trimmed, NumberStyles.Float, CultureInfo.CurrentCulture, out value))
+        {
+            return value > 0 ? value : 0;
+        }
+
+        return 0;
+    }
+
+    public static double ResolveLimitKbps(SpeedLimitOption selected, string? mbpsText)
+    {
+        if (selected.IsCustom)
+        {
+            var mbps = ParseMbps(mbpsText);
+            return mbps > 0 ? TrafficFormatter.MBpsToKbps(mbps) : 0;
+        }
+
+        if (selected.IsUnlimited)
+        {
+            return 0;
+        }
+
+        return TrafficFormatter.MBpsToKbps(selected.MegaBytesPerSecond);
+    }
+
+    private void ApplyCustomMbpsInput(bool isDownload, string text)
+    {
+        var mbps = ParseMbps(text);
+        var kbps = mbps > 0 ? TrafficFormatter.MBpsToKbps(mbps) : 0;
+        var kbpsText = kbps > 0 ? kbps.ToString("0.##", CultureInfo.InvariantCulture) : string.Empty;
+
+        _suppressLimitEvents = true;
+        if (isDownload)
+        {
+            _downloadLimitKbpsText = kbpsText;
+            RaisePropertyChanged(nameof(DownloadLimitKbpsText));
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                // Empty custom field while "自訂" stays selected does not force unlimited until apply.
+            }
+            else if (!_selectedDownloadLimit.IsCustom)
+            {
+                _selectedDownloadLimit = SpeedLimitOption.Custom;
+                RaisePropertyChanged(nameof(SelectedDownloadLimit));
+            }
+
+            _isDownloadLimitEnabled = kbps > 0 || _selectedDownloadLimit.IsCustom;
+            RaisePropertyChanged(nameof(IsDownloadLimitEnabled));
+        }
+        else
+        {
+            _uploadLimitKbpsText = kbpsText;
+            RaisePropertyChanged(nameof(UploadLimitKbpsText));
+
+            if (!string.IsNullOrWhiteSpace(text) && !_selectedUploadLimit.IsCustom)
+            {
+                _selectedUploadLimit = SpeedLimitOption.Custom;
+                RaisePropertyChanged(nameof(SelectedUploadLimit));
+            }
+
+            _isUploadLimitEnabled = kbps > 0 || _selectedUploadLimit.IsCustom;
+            RaisePropertyChanged(nameof(IsUploadLimitEnabled));
+        }
+
+        SyncPriorityFromLimits();
+        _suppressLimitEvents = false;
+        _ = RaiseLimitSettingsChangedAsync();
+    }
+
+    private void SyncFromSelectedOption(
+        SpeedLimitOption value,
+        Action<string> setMbps,
+        Action<string> setKbps,
+        Action<bool> setEnabled,
+        string mbpsProp,
+        string kbpsProp,
+        string enabledProp,
+        string currentMbpsText)
+    {
+        if (value.IsCustom)
+        {
+            // Keep free-form text; enable when a positive MB/s is present.
+            setEnabled(ParseMbps(currentMbpsText) > 0);
+            RaisePropertyChanged(enabledProp);
+            return;
+        }
+
+        if (value.IsUnlimited)
+        {
+            setMbps(string.Empty);
+            setKbps(string.Empty);
+            setEnabled(false);
+        }
+        else
+        {
+            var mbps = value.MegaBytesPerSecond;
+            var kbps = TrafficFormatter.MBpsToKbps(mbps);
+            setMbps(FormatMbpsField(mbps));
+            setKbps(kbps.ToString("0.##", CultureInfo.InvariantCulture));
+            setEnabled(true);
+        }
+
+        RaisePropertyChanged(mbpsProp);
+        RaisePropertyChanged(kbpsProp);
+        RaisePropertyChanged(enabledProp);
+    }
+
+    private void SyncPriorityFromLimits()
+    {
+        var hasLimit =
+            ResolveLimitKbps(SelectedDownloadLimit, DownloadLimitMbpsText) > 0 ||
+            ResolveLimitKbps(SelectedUploadLimit, UploadLimitMbpsText) > 0 ||
+            SelectedDownloadLimit.IsCustom ||
+            SelectedUploadLimit.IsCustom ||
+            !SelectedDownloadLimit.IsUnlimited ||
+            !SelectedUploadLimit.IsUnlimited;
+
+        if (hasLimit)
+        {
+            if (SelectedPriority.Priority is TrafficPriority.Normal or TrafficPriority.High)
+            {
+                _selectedPriority = TrafficPriorityOption.All.First(x => x.Priority == TrafficPriority.Limit);
+                RaisePropertyChanged(nameof(SelectedPriority));
+                RaisePropertyChanged(nameof(PriorityBrush));
+                RaisePropertyChanged(nameof(PriorityBadgeText));
+            }
+        }
+        else if (SelectedPriority.Priority == TrafficPriority.Limit)
+        {
+            _selectedPriority = TrafficPriorityOption.All.First(x => x.Priority == TrafficPriority.Normal);
+            RaisePropertyChanged(nameof(SelectedPriority));
+            RaisePropertyChanged(nameof(PriorityBrush));
+            RaisePropertyChanged(nameof(PriorityBadgeText));
+        }
+    }
+
+    private static string FormatMbpsField(double mbps) =>
+        mbps > 0 ? mbps.ToString("0.###", CultureInfo.InvariantCulture) : string.Empty;
 
     private static IBrush BuildAvatarBrush(string name)
     {
