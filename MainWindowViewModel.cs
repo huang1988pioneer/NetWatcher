@@ -26,6 +26,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly List<TrafficLogEntry> _trafficLog = [];
     private readonly Dictionary<string, ProcessTrafficViewModel> _processMap = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CancellationTokenSource> _limitDebounce = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _limitEngineSynced = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _limitReapplyNeeded = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _limitSync = new();
 
     private string _totalDownloadSpeedText = "0 B/s";
@@ -906,7 +908,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Refresh PID/port ownership for the WinDivert packet shaper and surface status.
+    /// Keep WinDivert targets in sync with the UI, refresh PID/port ownership,
+    /// and surface engine status. Saved limits that only live in the UI (loaded
+    /// from limits.json without firing change events) are re-applied here.
     /// </summary>
     private void ApplySoftThrottleSamples()
     {
@@ -916,7 +920,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             {
                 if (!process.HasActiveLimit || !process.IsLimitControlEnabled)
                 {
+                    // Drop sync mark so re-enabling later re-applies cleanly.
+                    _limitEngineSynced.Remove(process.ProcessName);
                     continue;
+                }
+
+                // Root cause of "UI shows 1 MB/s but traffic is unrestricted":
+                // LoadLimitSettings suppresses events, so the packet engine never
+                // received SetLimit until the user edited a control again.
+                if (!_trafficLimitService.SoftThrottle.HasLimit(process.ProcessName) &&
+                    !process.IsApplyingLimit)
+                {
+                    QueueLimitApply(process);
                 }
 
                 _trafficLimitService.SoftThrottle.OnSample(
@@ -1017,8 +1032,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 };
                 vm.TouchActivity();
                 vm.LimitSettingsChanged += OnProcessLimitSettingsChangedAsync;
+                // LoadLimitSettings suppresses change events — apply saved limits
+                // to the packet engine explicitly or they only appear in the UI.
                 vm.LoadLimitSettings(_limitSettingsStore.GetOrCreate(process.ProcessName));
                 _processMap[key] = vm;
+                if (vm.HasActiveLimit)
+                {
+                    QueueLimitApply(vm);
+                }
             }
 
             vm.UpdateTraffic(
@@ -1044,9 +1065,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             pair.Value.LimitSettingsChanged -= OnProcessLimitSettingsChangedAsync;
+            _limitEngineSynced.Remove(pair.Key);
             _processMap.Remove(pair.Key);
         }
     }
+
+    /// <summary>Debounced apply — used for UI edits and for restoring saved limits.</summary>
+    private void QueueLimitApply(ProcessTrafficViewModel process) =>
+        _ = OnProcessLimitSettingsChangedAsync(process);
 
     private async Task OnProcessLimitSettingsChangedAsync(ProcessTrafficViewModel process)
     {
@@ -1068,6 +1094,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
+            // Short debounce for UI typing; restore-from-disk also goes through here.
             await Task.Delay(450, cts.Token);
             await ApplyProcessLimitsAsync(process, cts.Token);
             // Stay stable a bit longer after apply so status text can be read.
@@ -1095,6 +1122,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (process.IsApplyingLimit)
         {
+            // Do not drop a concurrent edit — re-run with latest UI values after this apply.
+            lock (_limitSync)
+            {
+                _limitReapplyNeeded.Add(process.ProcessName);
+            }
+
             return;
         }
 
@@ -1120,6 +1153,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                         cancellationToken);
                 process.LimitStatusText = "已關閉控管 · " + cleared.Message;
                 LimitEngineStatusText = process.LimitStatusText;
+                _limitEngineSynced.Remove(process.ProcessName);
                 return;
             }
 
@@ -1167,6 +1201,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     ? result.Message
                     : "失敗：" + result.Message;
                 LimitEngineStatusText = process.LimitStatusText;
+
+                if (result.Success &&
+                    (downloadLimit > 0 || uploadLimit > 0 || priority is TrafficPriority.Low or TrafficPriority.Limit))
+                {
+                    _limitEngineSynced.Add(process.ProcessName);
+                }
+                else
+                {
+                    _limitEngineSynced.Remove(process.ProcessName);
+                }
             }
             else
             {
@@ -1187,11 +1231,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                         cancellationToken);
                 process.LimitStatusText = clear.Message;
                 LimitEngineStatusText = clear.Message;
+                _limitEngineSynced.Remove(process.ProcessName);
             }
         }
         finally
         {
             process.IsApplyingLimit = false;
+
+            var needsReapply = false;
+            lock (_limitSync)
+            {
+                needsReapply = _limitReapplyNeeded.Remove(process.ProcessName);
+            }
+
+            if (needsReapply && !cancellationToken.IsCancellationRequested)
+            {
+                QueueLimitApply(process);
+            }
         }
     }
 
@@ -1223,6 +1279,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public async Task ClearAllLimitsAsync()
     {
         await _trafficLimitService.RemoveAllAsync();
+        lock (_limitSync)
+        {
+            _limitEngineSynced.Clear();
+            _limitReapplyNeeded.Clear();
+        }
+
         foreach (var process in _processMap.Values)
         {
             process.LoadLimitSettings(new ProcessLimitSettings());

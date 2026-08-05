@@ -123,9 +123,9 @@ public sealed class TrafficLimitService : IDisposable
 
                 if (IsElevated)
                 {
+                    // QoS is secondary; packet shaping is the real limiter.
                     var qos = await ApplyUploadLimitAsync(processName, lowRate, cancellationToken);
-                    messages.Add(qos.Success ? "QoS上傳已套用" : "QoS失敗:" + Short(qos.Message));
-                    anyFail |= !qos.Success;
+                    messages.Add(qos.Success ? "QoS上傳已套用" : "QoS輔助失敗(可忽略):" + Short(qos.Message));
                 }
                 else
                 {
@@ -154,11 +154,11 @@ public sealed class TrafficLimitService : IDisposable
                     messages.Add($"上傳限速 {FormatLimitMBps(uploadLimitKbps)}");
                     if (IsElevated)
                     {
+                        // QoS is an extra belt for upload; do not fail the whole apply if it errors.
                         var qos = await ApplyUploadLimitAsync(processName, uploadLimitKbps, cancellationToken);
                         messages.Add(qos.Success
                             ? $"QoS上傳已驗證 {FormatLimitMBps(uploadLimitKbps)}"
-                            : "QoS失敗:" + Short(qos.Message));
-                        anyFail |= !qos.Success;
+                            : "QoS輔助失敗(可忽略):" + Short(qos.Message));
                     }
                 }
                 else if (IsElevated)
@@ -194,10 +194,27 @@ public sealed class TrafficLimitService : IDisposable
 
         if (priority is TrafficPriority.Limit or TrafficPriority.Low)
         {
-            messages.Add(_softThrottle.LastActionText);
+            // Worker starts asynchronously; wait a moment so missing DLL / access denied surface here.
+            string engineStatus;
+            try
+            {
+                engineStatus = await _softThrottle
+                    .WaitForStartupAsync(TimeSpan.FromSeconds(1.5), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                engineStatus = _softThrottle.LastActionText;
+            }
+
+            messages.Add(engineStatus);
+            if (_softThrottle.HasStartupFailure)
+            {
+                anyFail = true;
+            }
         }
 
-        var text = string.Join(" · ", messages.Where(m => !string.IsNullOrWhiteSpace(m)).Take(4));
+        var text = string.Join(" · ", messages.Where(m => !string.IsNullOrWhiteSpace(m)).Take(5));
         return anyFail ? LimitApplyResult.Fail(text) : LimitApplyResult.Ok(text);
     }
 

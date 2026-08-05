@@ -198,7 +198,13 @@
     </ScrollViewer>
 
     <Border Grid.Row="4" Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,1,0,0" Padding="16,8">
-      <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding LimitFooterText}" />
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding LimitEngineStatusText}"
+                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding LimitEngineStatusText}" />
+        <TextBlock Grid.Column="1" FontSize="11" Foreground="{Binding MutedTextBrush}"
+                   Text="{Binding AdminStatusText}" HorizontalAlignment="Right" />
+      </Grid>
     </Border>
   </Grid>
 </Window>

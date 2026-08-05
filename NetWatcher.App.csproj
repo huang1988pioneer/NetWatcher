@@ -8,10 +8,10 @@
     <UseWindowsForms>false</UseWindowsForms>
     <AssemblyName>NetWatcher.App</AssemblyName>
     <RootNamespace>NetWatcher.App</RootNamespace>
-    <Version>1.2.12</Version>
-    <AssemblyVersion>1.2.12.0</AssemblyVersion>
-    <FileVersion>1.2.12.0</FileVersion>
-    <InformationalVersion>1.2.12</InformationalVersion>
+    <Version>1.2.13</Version>
+    <AssemblyVersion>1.2.13.0</AssemblyVersion>
+    <FileVersion>1.2.13.0</FileVersion>
+    <InformationalVersion>1.2.13</InformationalVersion>
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64;linux-x64;linux-arm64</RuntimeIdentifiers>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**</DefaultItemExcludes>
   </PropertyGroup>
@@ -29,7 +29,9 @@
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.1" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+  <!-- WinDivert x64: ship with default Windows builds (empty RID) and win-x64 publish.
+       Without these next to the exe, packet-level speed limits fail with DllNotFound. -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'win-x64'">
     <Content Include="native\windivert\x64\WinDivert.dll" Link="WinDivert.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <Content Include="native\windivert\x64\WinDivert64.sys" Link="WinDivert64.sys" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>

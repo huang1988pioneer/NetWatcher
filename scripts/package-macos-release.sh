@@ -7,7 +7,7 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
 fi
 
 rid="$1"
-version="${2:-1.2.11}"
+version="${2:-1.2.13}"
 
 case "$rid" in
   osx-arm64|osx-x64) ;;
