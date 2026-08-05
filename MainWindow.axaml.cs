@@ -18,6 +18,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void SpeedTestButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            await viewModel.ToggleSpeedTestAsync();
+        }
+    }
+
     private void RestartAsAdminButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is MainWindowViewModel viewModel)

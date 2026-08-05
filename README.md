@@ -24,11 +24,23 @@ Dashboard inspired by modern bandwidth monitors:
 | Area | Capability |
 |------|------------|
 | **總覽** | Dual download / upload speed cards with 60s sparklines (MB/s) |
+| **網路測速** | Speedtest-style GO test: Ping / Jitter / Download / Upload (Mbps via Cloudflare) |
 | **程式列表** | Live per-process DL/UL rates, status, avatar |
 | **速度限制** | Per-app download & upload MB/s presets, free-form MB/s input, enable toggle |
 | **網路監控** | Larger dual-channel history charts + averages |
 | **歷史記錄** | Session / Today / Yesterday / Week / Month / All-time volume |
 | **設定** | Adapter picker, theme skins, CSV export, clear limits |
+
+### Internet speed test (Speedtest-style)
+
+On the main dashboard:
+
+1. Click the circular **GO** button
+2. NetWatcher measures **Ping → Download → Upload** (~25 seconds)
+3. Results show **Mbps** (same unit as consumer speed tests) plus binary **B/s · KB/s · MB/s** detail
+4. Click again while running to **cancel**
+
+Uses Cloudflare public measurement endpoints (no API key). Not affiliated with Ookla Speedtest.
 
 ### Per-process speed limit
 

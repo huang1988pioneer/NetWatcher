@@ -148,10 +148,41 @@
       <Setter Property="CornerRadius" Value="14" />
     </Style>
 
+    <Style Selector="Border.ui-metric">
+      <Setter Property="Background" Value="#0C1528" />
+      <Setter Property="BorderBrush" Value="#243454" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+    </Style>
+
     <Style Selector="Border.ui-badge">
       <Setter Property="Background" Value="#1A3A6A" />
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="8,3" />
+    </Style>
+
+    <!-- Speedtest-style circular GO button -->
+    <Style Selector="Button.ui-speedtest-go">
+      <Setter Property="Width" Value="104" />
+      <Setter Property="Height" Value="104" />
+      <Setter Property="CornerRadius" Value="52" />
+      <Setter Property="Background" Value="#0B2A4A" />
+      <Setter Property="Foreground" Value="#F0F9FF" />
+      <Setter Property="BorderBrush" Value="#38BDF8" />
+      <Setter Property="BorderThickness" Value="3" />
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.ui-speedtest-go:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#0F3A66" />
+      <Setter Property="BorderBrush" Value="#7DD3FC" />
+    </Style>
+    <Style Selector="Button.ui-speedtest-go:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="#082038" />
     </Style>
   </Application.Styles>
 </Application>

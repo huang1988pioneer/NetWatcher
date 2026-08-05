@@ -42,6 +42,31 @@ public static class TrafficFormatter
 
     public static double KbpsToMBps(double kbps) => kbps / 1024d;
 
+    /// <summary>Decimal megabits/s (Speedtest-style): 1 Mbps = 1,000,000 bits/s.</summary>
+    public static double BytesPerSecondToMbps(double bytesPerSecond) =>
+        Math.Max(0, bytesPerSecond) * 8d / 1_000_000d;
+
+    public static string FormatMbps(double bytesPerSecond)
+    {
+        var mbps = BytesPerSecondToMbps(bytesPerSecond);
+        return mbps >= 100 ? $"{mbps:0.#} Mbps"
+             : mbps >= 10  ? $"{mbps:0.##} Mbps"
+             : mbps >= 1   ? $"{mbps:0.##} Mbps"
+                           : $"{mbps:0.00} Mbps";
+    }
+
+    public static string FormatLatencyMs(double milliseconds)
+    {
+        if (milliseconds < 10)
+        {
+            return $"{milliseconds:0.0} ms";
+        }
+
+        return milliseconds < 100
+            ? $"{milliseconds:0.#} ms"
+            : $"{milliseconds:0} ms";
+    }
+
     private static string FormatScaled(double amount, string[] units)
     {
         var value = Math.Max(0, amount);

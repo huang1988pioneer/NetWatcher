@@ -18,7 +18,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly TrafficLimitService _trafficLimitService;
     private readonly LimitSettingsStore _limitSettingsStore;
     private readonly TrafficStatsStore _trafficStatsStore;
+    private readonly SpeedTestService _speedTestService;
     private readonly DispatcherTimer _timer;
+    private CancellationTokenSource? _speedTestCts;
     private readonly Queue<double> _downloadHistory = new();
     private readonly Queue<double> _uploadHistory = new();
     private readonly List<TrafficLogEntry> _trafficLog = [];
@@ -120,6 +122,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>Hold list membership/order so open limit ComboBoxes are not rebuilt.</summary>
     private DateTimeOffset _processListStableUntil = DateTimeOffset.MinValue;
 
+    private bool _isSpeedTestRunning;
+    private string _speedTestButtonText = "GO";
+    private string _speedTestStatusText = "點擊 GO 開始網路測速";
+    private string _speedTestServerText = "伺服器：尚未測試";
+    private string _speedTestPingText = "—";
+    private string _speedTestJitterText = "—";
+    private string _speedTestDownloadText = "—";
+    private string _speedTestUploadText = "—";
+    private string _speedTestDownloadDetailText = "下載";
+    private string _speedTestUploadDetailText = "上傳";
+    private string _speedTestLiveSpeedText = "";
+    private double _speedTestProgressPercent;
+    private SpeedTestPhase _speedTestPhase = SpeedTestPhase.Idle;
+
     public MainWindowViewModel()
     {
         _birthdayEasterEgg = BirthdayEasterEgg.CreateFor(DateTime.Today);
@@ -128,6 +144,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _trafficLimitService = new TrafficLimitService();
         _limitSettingsStore = new LimitSettingsStore(AppContext.BaseDirectory);
         _trafficStatsStore = new TrafficStatsStore(AppContext.BaseDirectory);
+        _speedTestService = new SpeedTestService();
         _selectedSortOption = _sortModes[0];
         _selectedUiTheme = _uiThemes[0];
         _palette = ThemePalette.For(UiTheme.Integrated);
@@ -590,6 +607,96 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     public bool HasNoProcesses => Processes.Count == 0;
+
+    public bool IsSpeedTestRunning
+    {
+        get => _isSpeedTestRunning;
+        private set
+        {
+            if (SetProperty(ref _isSpeedTestRunning, value))
+            {
+                RaisePropertyChanged(nameof(IsSpeedTestIdle));
+                RaisePropertyChanged(nameof(SpeedTestActionHint));
+            }
+        }
+    }
+
+    public bool IsSpeedTestIdle => !IsSpeedTestRunning;
+
+    public string SpeedTestButtonText
+    {
+        get => _speedTestButtonText;
+        private set => SetProperty(ref _speedTestButtonText, value);
+    }
+
+    public string SpeedTestStatusText
+    {
+        get => _speedTestStatusText;
+        private set => SetProperty(ref _speedTestStatusText, value);
+    }
+
+    public string SpeedTestServerText
+    {
+        get => _speedTestServerText;
+        private set => SetProperty(ref _speedTestServerText, value);
+    }
+
+    public string SpeedTestPingText
+    {
+        get => _speedTestPingText;
+        private set => SetProperty(ref _speedTestPingText, value);
+    }
+
+    public string SpeedTestJitterText
+    {
+        get => _speedTestJitterText;
+        private set => SetProperty(ref _speedTestJitterText, value);
+    }
+
+    public string SpeedTestDownloadText
+    {
+        get => _speedTestDownloadText;
+        private set => SetProperty(ref _speedTestDownloadText, value);
+    }
+
+    public string SpeedTestUploadText
+    {
+        get => _speedTestUploadText;
+        private set => SetProperty(ref _speedTestUploadText, value);
+    }
+
+    public string SpeedTestDownloadDetailText
+    {
+        get => _speedTestDownloadDetailText;
+        private set => SetProperty(ref _speedTestDownloadDetailText, value);
+    }
+
+    public string SpeedTestUploadDetailText
+    {
+        get => _speedTestUploadDetailText;
+        private set => SetProperty(ref _speedTestUploadDetailText, value);
+    }
+
+    public string SpeedTestLiveSpeedText
+    {
+        get => _speedTestLiveSpeedText;
+        private set => SetProperty(ref _speedTestLiveSpeedText, value);
+    }
+
+    public double SpeedTestProgressPercent
+    {
+        get => _speedTestProgressPercent;
+        private set => SetProperty(ref _speedTestProgressPercent, value);
+    }
+
+    public SpeedTestPhase SpeedTestPhase
+    {
+        get => _speedTestPhase;
+        private set => SetProperty(ref _speedTestPhase, value);
+    }
+
+    public string SpeedTestActionHint =>
+        IsSpeedTestRunning ? "測試進行中，可再次點擊取消" : "延遲 → 下載 → 上傳（約 25 秒）";
 
     public string ProcessSummaryText =>
         HasNoProcesses
@@ -1127,6 +1234,211 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             : "已清除所有 NetWatcher 限速原則。";
     }
 
+    public async Task ToggleSpeedTestAsync()
+    {
+        if (IsSpeedTestRunning)
+        {
+            CancelSpeedTest();
+            return;
+        }
+
+        await StartSpeedTestAsync();
+    }
+
+    public async Task StartSpeedTestAsync()
+    {
+        if (IsSpeedTestRunning)
+        {
+            return;
+        }
+
+        CancelSpeedTest();
+        _speedTestCts = new CancellationTokenSource();
+        var token = _speedTestCts.Token;
+
+        IsSpeedTestRunning = true;
+        SpeedTestPhase = SpeedTestPhase.Preparing;
+        SpeedTestButtonText = "…";
+        SpeedTestStatusText = "準備測速…";
+        SpeedTestServerText = "伺服器：連線中";
+        SpeedTestPingText = "—";
+        SpeedTestJitterText = "—";
+        SpeedTestDownloadText = "—";
+        SpeedTestUploadText = "—";
+        SpeedTestDownloadDetailText = "下載";
+        SpeedTestUploadDetailText = "上傳";
+        SpeedTestLiveSpeedText = "";
+        SpeedTestProgressPercent = 0;
+
+        var progress = new Progress<SpeedTestProgress>(OnSpeedTestProgress);
+
+        try
+        {
+            // HttpClient work is fully async; keep the UI thread free without double-wrapping Task.Run.
+            var result = await _speedTestService.RunAsync(progress, token).ConfigureAwait(true);
+            ApplySpeedTestResult(result);
+        }
+        catch (OperationCanceledException)
+        {
+            SpeedTestPhase = SpeedTestPhase.Cancelled;
+            SpeedTestStatusText = "測速已取消";
+            SpeedTestButtonText = "GO";
+            SpeedTestLiveSpeedText = "";
+            SpeedTestProgressPercent = 0;
+        }
+        catch (Exception ex)
+        {
+            SpeedTestPhase = SpeedTestPhase.Failed;
+            SpeedTestStatusText = $"測速失敗：{ex.Message}";
+            SpeedTestButtonText = "GO";
+            SpeedTestLiveSpeedText = "";
+            SpeedTestProgressPercent = 0;
+        }
+        finally
+        {
+            IsSpeedTestRunning = false;
+            if (SpeedTestButtonText != "GO")
+            {
+                SpeedTestButtonText = "GO";
+            }
+
+            try
+            {
+                _speedTestCts?.Dispose();
+            }
+            catch
+            {
+                // ignore
+            }
+
+            _speedTestCts = null;
+        }
+    }
+
+    public void CancelSpeedTest()
+    {
+        try
+        {
+            _speedTestCts?.Cancel();
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+    private void OnSpeedTestProgress(SpeedTestProgress progress)
+    {
+        SpeedTestPhase = progress.Phase;
+        SpeedTestStatusText = progress.StatusText;
+        SpeedTestServerText = string.IsNullOrWhiteSpace(progress.ServerInfo)
+            ? "伺服器：—"
+            : $"伺服器：{progress.ServerInfo}";
+        SpeedTestProgressPercent = progress.ProgressPercent;
+
+        if (progress.PingMs is double ping)
+        {
+            SpeedTestPingText = TrafficFormatter.FormatLatencyMs(ping);
+        }
+
+        if (progress.JitterMs is double jitter)
+        {
+            SpeedTestJitterText = $"抖動 {TrafficFormatter.FormatLatencyMs(jitter)}";
+        }
+
+        if (progress.DownloadBytesPerSecond is double download)
+        {
+            SpeedTestDownloadText = TrafficFormatter.FormatMbps(download);
+            SpeedTestDownloadDetailText = TrafficFormatter.FormatSpeed(download);
+        }
+
+        if (progress.UploadBytesPerSecond is double upload)
+        {
+            SpeedTestUploadText = TrafficFormatter.FormatMbps(upload);
+            SpeedTestUploadDetailText = TrafficFormatter.FormatSpeed(upload);
+        }
+
+        SpeedTestLiveSpeedText = progress.Phase switch
+        {
+            SpeedTestPhase.Download when progress.InstantBytesPerSecond > 0 =>
+                TrafficFormatter.FormatMbps(progress.InstantBytesPerSecond),
+            SpeedTestPhase.Upload when progress.InstantBytesPerSecond > 0 =>
+                TrafficFormatter.FormatMbps(progress.InstantBytesPerSecond),
+            SpeedTestPhase.Latency when progress.PingMs is double livePing =>
+                TrafficFormatter.FormatLatencyMs(livePing),
+            _ => progress.Phase switch
+            {
+                SpeedTestPhase.Preparing => "…",
+                SpeedTestPhase.Latency => "Ping",
+                SpeedTestPhase.Download => "↓",
+                SpeedTestPhase.Upload => "↑",
+                _ => "…"
+            }
+        };
+
+        SpeedTestButtonText = progress.Phase switch
+        {
+            SpeedTestPhase.Latency => "Ping",
+            SpeedTestPhase.Download => "↓",
+            SpeedTestPhase.Upload => "↑",
+            SpeedTestPhase.Preparing => "…",
+            _ => "…"
+        };
+    }
+
+    private void ApplySpeedTestResult(SpeedTestResult result)
+    {
+        SpeedTestServerText = string.IsNullOrWhiteSpace(result.ServerInfo)
+            ? "伺服器：—"
+            : $"伺服器：{result.ServerInfo}";
+
+        if (result.PingMs is double ping)
+        {
+            SpeedTestPingText = TrafficFormatter.FormatLatencyMs(ping);
+        }
+
+        if (result.JitterMs is double jitter)
+        {
+            SpeedTestJitterText = $"抖動 {TrafficFormatter.FormatLatencyMs(jitter)}";
+        }
+
+        if (result.DownloadBytesPerSecond is double download)
+        {
+            SpeedTestDownloadText = TrafficFormatter.FormatMbps(download);
+            SpeedTestDownloadDetailText = TrafficFormatter.FormatSpeed(download);
+        }
+
+        if (result.UploadBytesPerSecond is double upload)
+        {
+            SpeedTestUploadText = TrafficFormatter.FormatMbps(upload);
+            SpeedTestUploadDetailText = TrafficFormatter.FormatSpeed(upload);
+        }
+
+        SpeedTestLiveSpeedText = "";
+        SpeedTestButtonText = "GO";
+        SpeedTestProgressPercent = result.Success ? 100 : SpeedTestProgressPercent;
+
+        if (result.Success)
+        {
+            SpeedTestPhase = SpeedTestPhase.Completed;
+            SpeedTestStatusText =
+                $"完成 · ↓ {SpeedTestDownloadText}  ↑ {SpeedTestUploadText}  · {result.CompletedAt:HH:mm:ss}";
+        }
+        else if (string.Equals(result.ErrorMessage, "已取消", StringComparison.Ordinal))
+        {
+            SpeedTestPhase = SpeedTestPhase.Cancelled;
+            SpeedTestStatusText = "測速已取消";
+            SpeedTestProgressPercent = 0;
+        }
+        else
+        {
+            SpeedTestPhase = SpeedTestPhase.Failed;
+            SpeedTestStatusText = string.IsNullOrWhiteSpace(result.ErrorMessage)
+                ? "測速失敗"
+                : $"測速失敗：{result.ErrorMessage}";
+        }
+    }
+
     public void RetryEtwMonitoring()
     {
         if (_networkMonitorService.TryRestartEtw())
@@ -1519,6 +1831,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _limitDebounce.Clear();
         }
 
+        try
+        {
+            _speedTestCts?.Cancel();
+            _speedTestCts?.Dispose();
+            _speedTestCts = null;
+        }
+        catch
+        {
+            // ignore
+        }
+
         foreach (var process in _processMap.Values)
         {
             process.LimitSettingsChanged -= OnProcessLimitSettingsChangedAsync;
@@ -1529,6 +1852,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         var limitService = _trafficLimitService;
         var networkService = _networkMonitorService;
         var statsStore = _trafficStatsStore;
+        var speedTestService = _speedTestService;
 
         try
         {
@@ -1552,6 +1876,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             networkService.Dispose();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        try
+        {
+            speedTestService.Dispose();
         }
         catch
         {
