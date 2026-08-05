@@ -5,254 +5,346 @@ using System.Runtime.InteropServices;
 namespace NetWatcher.App;
 
 /// <summary>
-/// Userspace bandwidth shaper that actually affects both download and upload
-/// without a kernel filter driver.
-///
-/// Method: if a process exceeded its limit last interval, suspend all matching
-/// processes for a fraction of the next second (duty-cycle). Crude but real.
-/// Complements Windows QoS (upload-only, admin).
+/// Packet-level process shaper backed by WinDivert.  Matching packets are held
+/// in user mode and re-injected at the configured token-bucket rate.  Unlike
+/// the previous suspend/resume implementation, this limits network bytes, not
+/// CPU execution time.
 /// </summary>
 public sealed class ProcessThrottleEngine : IDisposable
 {
-    private readonly ConcurrentDictionary<string, ThrottleTarget> _targets =
-        new(StringComparer.OrdinalIgnoreCase);
+    private const int AfInet = 2;
+    private const int TcpTableOwnerPidAll = 5;
+    private const int UdpTableOwnerPid = 1;
+    private const int NetworkLayer = 0;
+    private const ulong ShutdownBoth = 3;
+    private static readonly IntPtr InvalidHandle = new(-1);
 
-    private readonly object _cycleSync = new();
-    private CancellationTokenSource? _cycleCts;
+    private readonly ConcurrentDictionary<string, ThrottleTarget> _targets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<int, ThrottleTarget> _targetsByPid = new();
+    private readonly ConcurrentDictionary<ushort, int> _tcpOwnersByPort = new();
+    private readonly ConcurrentDictionary<BucketKey, TokenBucket> _buckets = new();
+    private readonly object _lifecycleSync = new();
+    private CancellationTokenSource? _workerCts;
+    private Task? _worker;
+    private IntPtr _handle = IntPtr.Zero;
+    private long _lastOwnershipRefresh;
     private bool _disposed;
 
-    public string LastActionText { get; private set; } = "軟限速待命";
+    public string LastActionText { get; private set; } = "封包限速待命";
 
-    public void SetLimit(
-        string processName,
-        double downloadLimitBytesPerSecond,
-        double uploadLimitBytesPerSecond,
-        bool enabled)
+    public void SetLimit(string processName, double downloadLimitBytesPerSecond, double uploadLimitBytesPerSecond, bool enabled)
     {
-        if (string.IsNullOrWhiteSpace(processName))
-        {
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(processName)) return;
 
         if (!enabled || (downloadLimitBytesPerSecond <= 0 && uploadLimitBytesPerSecond <= 0))
-        {
             _targets.TryRemove(processName, out _);
-            return;
-        }
+        else
+            _targets[processName] = new ThrottleTarget(processName, Math.Max(0, downloadLimitBytesPerSecond), Math.Max(0, uploadLimitBytesPerSecond));
 
-        _targets[processName] = new ThrottleTarget(
-            processName,
-            Math.Max(0, downloadLimitBytesPerSecond),
-            Math.Max(0, uploadLimitBytesPerSecond));
+        RefreshOwnership(force: true);
+        if (!_targets.IsEmpty) EnsureWorker();
     }
 
     public void Clear(string processName)
     {
         _targets.TryRemove(processName, out _);
+        RefreshOwnership(force: true);
     }
 
     public void ClearAll()
     {
         _targets.Clear();
-        CancelCycle();
-        LastActionText = "已清除軟限速";
+        _targetsByPid.Clear();
+        _tcpOwnersByPort.Clear();
+        _buckets.Clear();
+        LastActionText = "已移除封包限速";
     }
 
-    /// <summary>
-    /// Called ~1s with measured rates. Adjusts suspend duty-cycle for next second.
-    /// </summary>
-    public void OnSample(
-        string processName,
-        double measuredDownloadBps,
-        double measuredUploadBps)
+    // Retained for the existing monitor call site.  It refreshes PID/port ownership;
+    // actual shaping happens on every diverted packet, not on one-second samples.
+    public void OnSample(string processName, double measuredDownloadBps, double measuredUploadBps) => RefreshOwnership(force: false);
+
+    private void EnsureWorker()
     {
-        if (_disposed || !_targets.TryGetValue(processName, out var target))
+        if (!OperatingSystem.IsWindows() || _disposed) return;
+        lock (_lifecycleSync)
         {
-            return;
+            if (_worker is { IsCompleted: false }) return;
+            _workerCts = new CancellationTokenSource();
+            _worker = Task.Run(() => RunAsync(_workerCts.Token));
         }
-
-        var dlFactor = target.DownloadLimitBps > 0 && measuredDownloadBps > target.DownloadLimitBps
-            ? target.DownloadLimitBps / measuredDownloadBps
-            : 1d;
-
-        var ulFactor = target.UploadLimitBps > 0 && measuredUploadBps > target.UploadLimitBps
-            ? target.UploadLimitBps / measuredUploadBps
-            : 1d;
-
-        // Strongest restriction wins (smallest run fraction).
-        var runFraction = Math.Clamp(Math.Min(dlFactor, ulFactor), 0.05, 1d);
-        var suspendMs = (int)Math.Round((1d - runFraction) * 1000d);
-
-        if (suspendMs < 40)
-        {
-            LastActionText = $"{processName}：在限速內";
-            return;
-        }
-
-        // Cap suspend so UI/process stay responsive.
-        suspendMs = Math.Min(suspendMs, 850);
-        _ = RunSuspendCycleAsync(processName, suspendMs);
     }
 
-    private async Task RunSuspendCycleAsync(string processName, int suspendMs)
+    private void RefreshOwnership(bool force)
     {
-        CancellationTokenSource cts;
-        lock (_cycleSync)
-        {
-            _cycleCts?.Cancel();
-            _cycleCts?.Dispose();
-            cts = new CancellationTokenSource();
-            _cycleCts = cts;
-        }
+        if (!OperatingSystem.IsWindows()) return;
+        var now = Stopwatch.GetTimestamp();
+        if (!force && now - Interlocked.Read(ref _lastOwnershipRefresh) < Stopwatch.Frequency) return;
+        Interlocked.Exchange(ref _lastOwnershipRefresh, now);
 
-        var pids = FindPids(processName);
-        if (pids.Count == 0)
+        var wanted = new Dictionary<int, ThrottleTarget>();
+        foreach (var target in _targets.Values)
         {
-            LastActionText = $"{processName}：找不到行程，無法軟限速";
-            return;
-        }
-
-        var suspended = new List<IntPtr>();
-        try
-        {
-            foreach (var pid in pids)
+            var name = Path.GetFileNameWithoutExtension(target.ProcessName);
+            try
             {
-                try
+                foreach (var process in Process.GetProcessesByName(name))
                 {
-                    var handle = OpenProcess(ProcessAccessFlags.SuspendResume, false, pid);
-                    if (handle == IntPtr.Zero)
-                    {
-                        continue;
-                    }
-
-                    if (NtSuspendProcess(handle) == 0)
-                    {
-                        suspended.Add(handle);
-                    }
-                    else
-                    {
-                        CloseHandle(handle);
-                    }
-                }
-                catch
-                {
-                    // Skip protected processes.
+                    try { wanted[process.Id] = target; }
+                    finally { process.Dispose(); }
                 }
             }
+            catch { /* Process may have exited. */ }
+        }
 
-            if (suspended.Count == 0)
+        _targetsByPid.Clear();
+        foreach (var pair in wanted) _targetsByPid[pair.Key] = pair.Value;
+        RefreshTcpOwners(wanted.Keys);
+        RefreshUdpOwners(wanted.Keys);
+    }
+
+    private void RefreshTcpOwners(IEnumerable<int> targetPids)
+    {
+        var wanted = targetPids.ToHashSet();
+        _tcpOwnersByPort.Clear();
+        if (wanted.Count == 0) return;
+
+        var size = 0;
+        if (GetExtendedTcpTable(IntPtr.Zero, ref size, true, AfInet, TcpTableOwnerPidAll, 0) != 122 || size <= 4) return;
+        var buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            if (GetExtendedTcpTable(buffer, ref size, true, AfInet, TcpTableOwnerPidAll, 0) != 0) return;
+            var count = Marshal.ReadInt32(buffer);
+            const int rowSize = 24;
+            for (var index = 0; index < count; index++)
             {
-                LastActionText = $"{processName}：無法暫停行程（可能受保護/權限不足）";
+                var row = IntPtr.Add(buffer, 4 + index * rowSize);
+                var rawPort = unchecked((uint)Marshal.ReadInt32(row, 8));
+                var pid = Marshal.ReadInt32(row, 20);
+                if (!wanted.Contains(pid)) continue;
+                var port = (ushort)(((rawPort & 0xFF) << 8) | ((rawPort >> 8) & 0xFF));
+                if (port != 0) _tcpOwnersByPort[port] = pid;
+            }
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    private void RefreshUdpOwners(IEnumerable<int> targetPids)
+    {
+        var wanted = targetPids.ToHashSet();
+        if (wanted.Count == 0) return;
+        var size = 0;
+        if (GetExtendedUdpTable(IntPtr.Zero, ref size, true, AfInet, UdpTableOwnerPid, 0) != 122 || size <= 4) return;
+        var buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            if (GetExtendedUdpTable(buffer, ref size, true, AfInet, UdpTableOwnerPid, 0) != 0) return;
+            var count = Marshal.ReadInt32(buffer);
+            const int rowSize = 12;
+            for (var index = 0; index < count; index++)
+            {
+                var row = IntPtr.Add(buffer, 4 + index * rowSize);
+                var rawPort = unchecked((uint)Marshal.ReadInt32(row, 4));
+                var pid = Marshal.ReadInt32(row, 8);
+                if (!wanted.Contains(pid)) continue;
+                var port = (ushort)(((rawPort & 0xFF) << 8) | ((rawPort >> 8) & 0xFF));
+                if (port != 0) _tcpOwnersByPort[port] = pid;
+            }
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    private async Task RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _handle = WinDivertOpen("tcp or udp", NetworkLayer, 0, 0);
+            if (_handle == InvalidHandle || _handle == IntPtr.Zero)
+            {
+                LastActionText = $"封包限速無法啟動（WinDivert：{Marshal.GetLastWin32Error()}）";
                 return;
             }
 
-            LastActionText =
-                $"{processName}：軟限速暫停 {suspendMs}ms（{suspended.Count} 個行程）";
+            LastActionText = "封包限速已啟動";
 
-            try
+            // Process packets concurrently so that queued packets waiting in the
+            // WinDivert kernel buffer don't all burst out once a single delay ends.
+            // Each captured packet is dispatched to a handler that independently
+            // waits for its token-bucket slot before re-injecting.
+            const int maxConcurrency = 64;
+            var sem = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(suspendMs, cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                // Newer cycle superseded this one.
+                await sem.WaitAsync(cancellationToken);
+
+                // Each packet needs its own buffer since handlers run concurrently.
+                var packet = new byte[0xFFFF];
+                var address = new WindivertAddress();
+                if (!WinDivertRecv(_handle, packet, (uint)packet.Length, out var length, ref address))
+                {
+                    sem.Release();
+                    if (cancellationToken.IsCancellationRequested) break;
+                    LastActionText = $"封包限速接收失敗（{Marshal.GetLastWin32Error()}）";
+                    break;
+                }
+
+                var capturedLength = length;
+                var capturedAddress = address;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (TryGetTarget(packet, (int)capturedLength, capturedAddress.Outbound, out var target, out var upload))
+                        {
+                            var rate = upload ? target.UploadLimitBytesPerSecond : target.DownloadLimitBytesPerSecond;
+                            if (rate > 0)
+                            {
+                                var bucket = _buckets.GetOrAdd(new BucketKey(target.ProcessName, upload), _ => new TokenBucket());
+                                await bucket.WaitAsync(capturedLength, rate, cancellationToken);
+                                LastActionText = $"{target.ProcessName} 封包限速中：{rate / TrafficFormatter.BytesPerMBps:0.##} MB/s";
+                            }
+                        }
+
+                        if (!WinDivertSend(_handle, packet, capturedLength, out _, ref capturedAddress))
+                        {
+                            LastActionText = $"封包限速重新注入失敗（{Marshal.GetLastWin32Error()}）";
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception ex) { LastActionText = $"封包處理錯誤：{ex.Message}"; }
+                    finally
+                    {
+                        sem.Release();
+                    }
+                }, cancellationToken);
             }
         }
+        catch (OperationCanceledException) { }
+        catch (DllNotFoundException) { LastActionText = "缺少 WinDivert.dll，無法啟動真正限速"; }
+        catch (Exception ex) { LastActionText = $"封包限速錯誤：{ex.Message}"; }
         finally
         {
-            foreach (var handle in suspended)
-            {
-                try
-                {
-                    NtResumeProcess(handle);
-                }
-                catch
-                {
-                    // ignore
-                }
-                finally
-                {
-                    CloseHandle(handle);
-                }
-            }
+            var handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
+            if (handle != IntPtr.Zero && handle != InvalidHandle) WinDivertClose(handle);
         }
     }
 
-    private static List<int> FindPids(string processName)
+    private bool TryGetTarget(byte[] packet, int length, bool outbound, out ThrottleTarget target, out bool upload)
     {
-        var name = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-            ? Path.GetFileNameWithoutExtension(processName)
-            : processName;
-
-        try
-        {
-            return Process.GetProcessesByName(name).Select(p =>
-            {
-                try
-                {
-                    return p.Id;
-                }
-                finally
-                {
-                    p.Dispose();
-                }
-            }).Where(id => id > 0).Distinct().ToList();
-        }
-        catch
-        {
-            return [];
-        }
-    }
-
-    private void CancelCycle()
-    {
-        lock (_cycleSync)
-        {
-            try
-            {
-                _cycleCts?.Cancel();
-                _cycleCts?.Dispose();
-            }
-            catch
-            {
-                // ignore
-            }
-
-            _cycleCts = null;
-        }
+        target = default!;
+        upload = outbound;
+        if (length < 1) return false;
+        var version = packet[0] >> 4;
+        var headerLength = version == 4 ? (packet[0] & 0x0F) * 4 : version == 6 ? 40 : 0;
+        if (headerLength < 20 || length < headerLength + 4) return false;
+        var protocol = version == 4 ? packet[9] : packet[6];
+        if (protocol is not 6 and not 17) return false;
+        var sourcePort = (ushort)((packet[headerLength] << 8) | packet[headerLength + 1]);
+        var destinationPort = (ushort)((packet[headerLength + 2] << 8) | packet[headerLength + 3]);
+        var localPort = outbound ? sourcePort : destinationPort;
+        return _tcpOwnersByPort.TryGetValue(localPort, out var pid) && _targetsByPid.TryGetValue(pid, out target!);
     }
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) return;
         _disposed = true;
+        lock (_lifecycleSync)
+        {
+            _workerCts?.Cancel();
+            if (_handle != IntPtr.Zero && _handle != InvalidHandle) WinDivertShutdown(_handle, ShutdownBoth);
+        }
+        try { _worker?.Wait(TimeSpan.FromSeconds(2)); } catch { }
+        _workerCts?.Dispose();
         ClearAll();
     }
 
-    private sealed record ThrottleTarget(
-        string ProcessName,
-        double DownloadLimitBps,
-        double UploadLimitBps);
-
-    [Flags]
-    private enum ProcessAccessFlags : uint
+    /// <summary>
+    /// Strict token-bucket rate limiter.  Grants <c>bytesPerSecond</c> tokens
+    /// every second, with a burst window of 50 ms (large enough to absorb the
+    /// ~15 ms Windows timer resolution, small enough to keep one-second
+    /// measurements within ~5 % of the target).
+    ///
+    /// Key design choices vs. the previous implementation:
+    /// <list type="bullet">
+    ///   <item>No free initial tokens – the first batch of packets is also rate-limited.</item>
+    ///   <item>Wait time is computed from the exact deficit (<c>bytes - _tokens</c>),
+    ///         not from <c>capacity - _tokens</c>, which previously under-waited.</item>
+    ///   <item>A minimum wait floor of 5 ms prevents busy-spinning on very small deficits.</item>
+    /// </list>
+    /// </summary>
+    private sealed class TokenBucket
     {
-        SuspendResume = 0x0800
+        private readonly object _sync = new();
+        private double _tokens;
+        private long _lastRefillTicks;
+        private bool _initialized;
+
+        public async Task WaitAsync(uint bytes, double bytesPerSecond, CancellationToken cancellationToken)
+        {
+            if (bytesPerSecond <= 0) return;
+
+            // 50 ms burst window: keeps measured 1-second rate within ~5 % of the
+            // target while being comfortably above Windows timer granularity.
+            var capacity = Math.Max(bytes, bytesPerSecond * 0.05d);
+
+            while (true)
+            {
+                var waitSeconds = 0d;
+                lock (_sync)
+                {
+                    var now = Stopwatch.GetTimestamp();
+                    if (!_initialized)
+                    {
+                        _lastRefillTicks = now;
+                        _tokens = 0;          // No free burst on first call.
+                        _initialized = true;
+                    }
+
+                    var elapsedSeconds = (double)(now - _lastRefillTicks) / Stopwatch.Frequency;
+                    _tokens = Math.Min(capacity, _tokens + elapsedSeconds * bytesPerSecond);
+                    _lastRefillTicks = now;
+
+                    if (_tokens >= bytes)
+                    {
+                        _tokens -= bytes;
+                        return;
+                    }
+
+                    // Wait for exactly the deficit, not to refill the whole capacity.
+                    var deficit = bytes - _tokens;
+                    waitSeconds = Math.Max(0.005d, deficit / bytesPerSecond);
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+            }
+        }
     }
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(ProcessAccessFlags processAccess, bool bInheritHandle, int processId);
+    private sealed record ThrottleTarget(string ProcessName, double DownloadLimitBytesPerSecond, double UploadLimitBytesPerSecond);
+    private readonly record struct BucketKey(string ProcessName, bool Upload);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool CloseHandle(IntPtr hObject);
+    [StructLayout(LayoutKind.Explicit, Size = 80)]
+    private struct WindivertAddress
+    {
+        [FieldOffset(8)] private uint _flags;
+        public bool Outbound => (_flags & (1u << 17)) != 0;
+    }
 
-    [DllImport("ntdll.dll")]
-    private static extern int NtSuspendProcess(IntPtr processHandle);
-
-    [DllImport("ntdll.dll")]
-    private static extern int NtResumeProcess(IntPtr processHandle);
+    [DllImport("WinDivert.dll", SetLastError = true, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    private static extern IntPtr WinDivertOpen(string filter, int layer, short priority, ulong flags);
+    [DllImport("WinDivert.dll", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+    private static extern bool WinDivertRecv(IntPtr handle, byte[] packet, uint packetLen, out uint recvLen, ref WindivertAddress address);
+    [DllImport("WinDivert.dll", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+    private static extern bool WinDivertSend(IntPtr handle, byte[] packet, uint packetLen, out uint sendLen, ref WindivertAddress address);
+    [DllImport("WinDivert.dll", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+    private static extern bool WinDivertShutdown(IntPtr handle, ulong how);
+    [DllImport("WinDivert.dll", SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+    private static extern bool WinDivertClose(IntPtr handle);
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern int GetExtendedTcpTable(IntPtr table, ref int size, bool order, int ipVersion, int tableClass, uint reserved);
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern int GetExtendedUdpTable(IntPtr table, ref int size, bool order, int ipVersion, int tableClass, uint reserved);
 }
