@@ -588,9 +588,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         : "單一程式流量僅支援 Windows ETW；macOS 版顯示總流量";
 
     public string IntegratedHelpText =>
-        "下載/上傳限速：預設用「軟限速」（超速時短暫暫停該程式，可實際降速，無需網卡驅動）。" +
-        " 上傳另可套用 Windows QoS（需系統管理員，較平滑）。" +
-        " 受保護系統行程可能無法暫停。開關需保持開啟。";
+        "下載/上傳限速：以 WinDivert 在封包層依程式限速（單位 MB/s，允許約數百分比誤差）。" +
+        " 需以系統管理員執行；上傳另可套用 Windows QoS 輔助。" +
+        " 開關需保持開啟才會套用。";
 
     public UiThemeOption SelectedUiTheme
     {
@@ -784,7 +784,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Feed live rates into userspace suspend-based shaper so download limits actually bite.
+    /// Refresh PID/port ownership for the WinDivert packet shaper and surface status.
     /// </summary>
     private void ApplySoftThrottleSamples()
     {
@@ -805,12 +805,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
             var action = _trafficLimitService.SoftThrottle.LastActionText;
             if (!string.IsNullOrWhiteSpace(action) &&
-                !action.Contains("待命", StringComparison.Ordinal) &&
-                !action.Contains("在限速內", StringComparison.Ordinal))
+                !action.Contains("待命", StringComparison.Ordinal))
             {
                 // Surface active shaping without overwriting apply errors every tick.
                 if (string.IsNullOrWhiteSpace(LimitEngineStatusText) ||
                     LimitEngineStatusText.Contains("軟限速", StringComparison.Ordinal) ||
+                    LimitEngineStatusText.Contains("封包限速", StringComparison.Ordinal) ||
                     LimitEngineStatusText.Contains("QoS", StringComparison.Ordinal) ||
                     LimitEngineStatusText.Contains("已套用", StringComparison.Ordinal) ||
                     LimitEngineStatusText.Contains("限速", StringComparison.Ordinal))

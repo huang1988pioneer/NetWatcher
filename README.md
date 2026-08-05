@@ -38,10 +38,11 @@ In the process table:
 
 ### Windows control notes
 
-- **Upload limit**: Policy-based QoS (`New-NetQosPolicy`)
+- **Download & upload limit**: WinDivert packet shaping per process (token/virtual-clock rate, target MB/s with small burst tolerance)
+- **Upload limit (extra)**: Policy-based QoS (`New-NetQosPolicy`) when elevated
 - **Block / clear**: Windows Firewall rules where applicable
-- **Download limit**: stored and displayed; Windows cannot reliably throttle inbound per app without a kernel filter
-- Run as **Administrator** for ETW process traffic and QoS/Firewall actions
+- Run as **Administrator** for ETW process traffic, WinDivert shaping, QoS, and Firewall actions
+- Without admin, speed limits cannot actually enforce (status will say so)
 
 ### Appearance skins
 

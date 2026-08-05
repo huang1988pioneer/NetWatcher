@@ -18,8 +18,12 @@ public static class TrafficFormatter
         return FormatScaled(bytes, VolumeUnits);
     }
 
-    /// <summary>Default dashboard rate unit: MB/s (binary megabytes per second).</summary>
-    public static string FormatSpeed(double bytesPerSecond) => FormatMBps(bytesPerSecond);
+    /// <summary>
+    /// Default dashboard rate display.  Uses auto-scaling units (B/s, KB/s,
+    /// MB/s, GB/s) so that rates below 1 MB/s are not rounded to "0.00 MB/s",
+    /// which users misread as "0 MB/s".
+    /// </summary>
+    public static string FormatSpeed(double bytesPerSecond) => FormatBytesPerSecond(bytesPerSecond);
 
     /// <summary>Always format as MB/s for the simplified dashboard.</summary>
     public static string FormatMBps(double bytesPerSecond)

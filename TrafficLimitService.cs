@@ -6,10 +6,9 @@ namespace NetWatcher.App;
 
 /// <summary>
 /// Traffic control:
-/// 1) Windows Policy-based QoS for outbound (upload) when elevated.
-/// 2) ProcessThrottleEngine soft limit (suspend duty-cycle) for download+upload (works without driver).
+/// 1) WinDivert packet shaping (download + upload) via ProcessThrottleEngine — needs admin.
+/// 2) Windows Policy-based QoS for outbound (upload) when elevated (extra belt).
 /// 3) Firewall block for Block priority.
-/// True smooth per-flow shaping still needs a kernel filter driver (NetLimiter etc.).
 /// </summary>
 public sealed class TrafficLimitService : IDisposable
 {
@@ -38,8 +37,8 @@ public sealed class TrafficLimitService : IDisposable
                 return "限速僅 Windows 可實際套用。";
             }
 
-            var admin = IsElevated ? "已提權" : "未提權（QoS 上傳不可用）";
-            return $"{admin} · 下載/上傳軟限速：暫停行程法（可實際降速）· 上傳 QoS：需管理員 · 下載 QoS：Windows 不支援入站。";
+            var admin = IsElevated ? "已提權" : "未提權（封包限速/QoS 需管理員）";
+            return $"{admin} · 下載/上傳：WinDivert 封包限速（目標 MB/s，允許微小誤差）· 上傳 QoS：額外輔助 · 需系統管理員。";
         }
     }
 
@@ -64,7 +63,7 @@ public sealed class TrafficLimitService : IDisposable
 
         if (!IsElevated && priority is TrafficPriority.Block)
         {
-            return LimitApplyResult.Fail("Block 需要系統管理員權限。軟限速若已設定仍會嘗試生效。");
+            return LimitApplyResult.Fail("Block 需要系統管理員權限。");
         }
 
         // Clear previous block first unless re-applying Block.
@@ -96,10 +95,10 @@ public sealed class TrafficLimitService : IDisposable
             case TrafficPriority.Low:
             {
                 var lowRate = uploadLimitKbps > 0 ? uploadLimitKbps : LowPriorityUploadKbps;
-                messages.Add($"軟限速：上傳≤{lowRate / 1024d:0.##} MB/s");
+                messages.Add($"封包限速：上傳≤{FormatLimitMBps(lowRate)}");
                 if (downloadLimitKbps > 0)
                 {
-                    messages.Add($"下載≤{downloadLimitKbps / 1024d:0.##} MB/s");
+                    messages.Add($"下載≤{FormatLimitMBps(downloadLimitKbps)}");
                 }
 
                 if (IsElevated)
@@ -110,7 +109,8 @@ public sealed class TrafficLimitService : IDisposable
                 }
                 else
                 {
-                    messages.Add("未提權：僅軟限速（無 QoS）");
+                    messages.Add("未提權：封包限速/QoS 無法生效，請以系統管理員執行");
+                    anyFail = true;
                 }
 
                 break;
@@ -126,23 +126,19 @@ public sealed class TrafficLimitService : IDisposable
 
                 if (downloadLimitKbps > 0)
                 {
-                    messages.Add($"軟限速下載≤{downloadLimitKbps / 1024d:0.##} MB/s（暫停行程）");
+                    messages.Add($"下載限速 {FormatLimitMBps(downloadLimitKbps)}");
                 }
 
                 if (uploadLimitKbps > 0)
                 {
-                    messages.Add($"軟限速上傳≤{uploadLimitKbps / 1024d:0.##} MB/s");
+                    messages.Add($"上傳限速 {FormatLimitMBps(uploadLimitKbps)}");
                     if (IsElevated)
                     {
                         var qos = await ApplyUploadLimitAsync(processName, uploadLimitKbps, cancellationToken);
                         messages.Add(qos.Success
-                            ? $"QoS上傳已驗證 {uploadLimitKbps / 1024d:0.##} MB/s"
+                            ? $"QoS上傳已驗證 {FormatLimitMBps(uploadLimitKbps)}"
                             : "QoS失敗:" + Short(qos.Message));
                         anyFail |= !qos.Success;
-                    }
-                    else
-                    {
-                        messages.Add("未提權：上傳僅軟限速");
                     }
                 }
                 else if (IsElevated)
@@ -151,9 +147,10 @@ public sealed class TrafficLimitService : IDisposable
                     await RemoveLimitAsync(processName, "UL2", cancellationToken);
                 }
 
-                if (downloadLimitKbps > 0 && uploadLimitKbps <= 0)
+                if (!IsElevated)
                 {
-                    messages.Add("下載靠軟限速（非網卡驅動）");
+                    messages.Add("未提權：WinDivert 封包限速無法啟動，請以系統管理員執行");
+                    anyFail = true;
                 }
 
                 break;
@@ -196,7 +193,7 @@ public sealed class TrafficLimitService : IDisposable
             return;
         }
 
-        // KB/s → bytes/s
+        // Stored unit is KiB/s (1024-based): UI "1 MB/s" → 1024 KiB/s → 1,048,576 B/s.
         var dlBps = downloadLimitKbps > 0 ? downloadLimitKbps * 1024d : 0;
         var ulBps = uploadLimitKbps > 0 ? uploadLimitKbps * 1024d : 0;
 
@@ -207,6 +204,18 @@ public sealed class TrafficLimitService : IDisposable
         }
 
         _softThrottle.SetLimit(processName, dlBps, ulBps, enabled: dlBps > 0 || ulBps > 0);
+    }
+
+    /// <summary>Format stored KiB/s limit as binary MB/s for status text (never show 0 when limit &gt; 0).</summary>
+    private static string FormatLimitMBps(double limitKibPerSecond)
+    {
+        if (limitKibPerSecond <= 0)
+        {
+            return "不限";
+        }
+
+        var mbps = limitKibPerSecond / 1024d;
+        return mbps >= 1 ? $"{mbps:0.##} MB/s" : $"{mbps:0.###} MB/s";
     }
 
     public async Task<LimitApplyResult> ApplyUploadLimitAsync(
@@ -309,9 +318,8 @@ public sealed class TrafficLimitService : IDisposable
             return Task.FromResult(LimitApplyResult.Ok("已關閉下載限速設定。"));
         }
 
-        var mbps = limitKbps / 1024d;
         return Task.FromResult(LimitApplyResult.Ok(
-            $"下載 {mbps:0.##} MB/s 由軟限速執行（暫停行程），非網卡硬限速"));
+            $"下載 {FormatLimitMBps(limitKbps)} 由 WinDivert 封包限速執行（需管理員）"));
     }
 
     public Task<LimitApplyResult> RemoveLimitAsync(
