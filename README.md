@@ -7,13 +7,15 @@ Windows builds include per-process traffic via ETW network events.
 
 Latest release:
 
-- [NetWatcher v1.2.7](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.7)
+- [NetWatcher v1.2.8](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.8)
 
 Release assets:
 
-- `NetWatcher-v1.2.7-win-x64.zip`
-- `NetWatcher-v1.2.7-macos-arm64.zip`
-- `NetWatcher-v1.2.7-macos-x64.zip`
+- `NetWatcher-v1.2.8-win-x64.zip`
+- `NetWatcher-v1.2.8-macos-arm64.zip`
+- `NetWatcher-v1.2.8-macos-x64.zip`
+- `NetWatcher-v1.2.8-linux-x64.zip`
+- `NetWatcher-v1.2.8-linux-arm64.zip`
 
 ## Features
 
@@ -59,16 +61,16 @@ Settings → 外觀主題:
 
 ## Requirements
 
-- Windows 10/11, macOS Apple Silicon, or macOS Intel
-- Administrator permission on Windows for per-process ETW + traffic control
+- Windows 10/11, macOS Apple Silicon / Intel, or Linux x64 / arm64
+- Administrator permission on Windows for per-process ETW + packet speed limits
 
 ## Quick Start
 
 1. Download the zip for your platform from the latest release.
 2. Extract the zip.
 3. On Windows, run `NetWatcher.App.exe` as administrator.
-4. On macOS, run `chmod +x NetWatcher.App`, then start `./NetWatcher.App`.
-5. Watch live MB/s cards; set per-process limits from the table.
+4. On macOS / Linux, run `chmod +x NetWatcher.App`, then start `./NetWatcher.App`.
+5. Watch live speed cards; set per-process limits from the table (Windows).
 
 ## Development
 
@@ -81,23 +83,32 @@ dotnet build NetWatcher.App.csproj -c Release
 Publish Windows release:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\win-x64
-Compress-Archive -Path .\artifacts\release\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.7-win-x64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.8\win-x64
+Compress-Archive -Path .\artifacts\release\v1.2.8\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.8-win-x64.zip -Force
 ```
 
 Publish macOS releases:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\macos-arm64
-dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\macos-x64
-Compress-Archive -Path .\artifacts\release\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.7-macos-arm64.zip -Force
-Compress-Archive -Path .\artifacts\release\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.7-macos-x64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.8\macos-arm64
+dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.8\macos-x64
+Compress-Archive -Path .\artifacts\release\v1.2.8\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.8-macos-arm64.zip -Force
+Compress-Archive -Path .\artifacts\release\v1.2.8\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.8-macos-x64.zip -Force
+```
+
+Publish Linux releases:
+
+```powershell
+dotnet publish NetWatcher.App.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.8\linux-x64
+dotnet publish NetWatcher.App.csproj -c Release -r linux-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.8\linux-arm64
+Compress-Archive -Path .\artifacts\release\v1.2.8\linux-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.8-linux-x64.zip -Force
+Compress-Archive -Path .\artifacts\release\v1.2.8\linux-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.8-linux-arm64.zip -Force
 ```
 
 ## Notes
 
 - Per-process traffic uses Windows ETW network events (~1s refresh).
-- Speeds in the dashboard are shown in **MB/s** by default (binary megabytes/s: 1 MB/s = 1024 KB/s).
+- Dashboard rates auto-scale (**B/s · KB/s · MB/s**); limits use binary megabytes/s (1 MB/s = 1024 KB/s).
 - Totals use **MB / GB** volume units.
-- macOS builds show total bandwidth; per-process traffic is unsupported.
+- macOS and Linux builds show total bandwidth; per-process traffic and packet limits are Windows-only.
 - Not affiliated with NetBalancer, Eltrafico, BWMeter, GlassWire, or NetLimiter.
