@@ -1442,14 +1442,30 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         _isDisposed = true;
-        _timer.Stop();
+
+        // Stop UI work immediately so close does not wait on network/driver teardown.
+        try
+        {
+            _timer.Stop();
+        }
+        catch
+        {
+            // ignore
+        }
 
         lock (_limitSync)
         {
             foreach (var cts in _limitDebounce.Values)
             {
-                cts.Cancel();
-                cts.Dispose();
+                try
+                {
+                    cts.Cancel();
+                    cts.Dispose();
+                }
+                catch
+                {
+                    // ignore
+                }
             }
 
             _limitDebounce.Clear();
@@ -1460,9 +1476,39 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             process.LimitSettingsChanged -= OnProcessLimitSettingsChangedAsync;
         }
 
-        _trafficStatsStore.Flush();
-        _trafficLimitService.Dispose();
-        _networkMonitorService.Dispose();
+        // Flush stats + dispose drivers/services off the UI thread when possible.
+        // Closing already runs on the UI thread; keep that path under a few hundred ms.
+        var limitService = _trafficLimitService;
+        var networkService = _networkMonitorService;
+        var statsStore = _trafficStatsStore;
+
+        try
+        {
+            // Stats write is usually fast; still cap hang risk with try.
+            statsStore.Flush();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        try
+        {
+            limitService.Dispose();
+        }
+        catch
+        {
+            // ignore
+        }
+
+        try
+        {
+            networkService.Dispose();
+        }
+        catch
+        {
+            // ignore
+        }
     }
 }
 

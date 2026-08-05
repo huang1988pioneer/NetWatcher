@@ -672,6 +672,8 @@ public sealed class TrafficLimitService : IDisposable
         }
 
         _disposed = true;
+
+        // Packet shaper first — must not block UI close for multiple seconds.
         try
         {
             _softThrottle.Dispose();
@@ -681,25 +683,35 @@ public sealed class TrafficLimitService : IDisposable
             // ignore
         }
 
-        if (!IsWindowsSupported || !IsElevated)
+        // Do not Wait() PowerShell cleanup on the UI thread (was up to 3s freeze).
+        // Fire-and-forget best-effort; process exit will tear down anyway.
+        if (IsWindowsSupported && IsElevated)
         {
-            lock (_sync)
+            try
             {
-                _activePolicies.Clear();
-                _activeFirewallRules.Clear();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(800));
+                        await RemoveAllAsync(cts.Token).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // Ignore cleanup failures on shutdown.
+                    }
+                });
             }
-
-            return;
+            catch
+            {
+                // ignore
+            }
         }
 
-        try
+        lock (_sync)
         {
-            var cleanup = RemoveAllAsync();
-            _ = cleanup.Wait(TimeSpan.FromSeconds(3));
-        }
-        catch
-        {
-            // Ignore cleanup failures on shutdown.
+            _activePolicies.Clear();
+            _activeFirewallRules.Clear();
         }
     }
 }

@@ -418,9 +418,8 @@ public sealed class EtwProcessMonitorService : IDisposable
     {
         _isDisposed = true;
         _isRunning = false;
+        // Stop in-process only — spawning logman here used to freeze UI close (~2s).
         StopSessionCore();
-        // Do not leave realtime ETS around for the next launch.
-        TryStopViaLogman(SessionName);
     }
 
     private sealed class ProcessCounter

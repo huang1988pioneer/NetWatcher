@@ -375,10 +375,18 @@ public sealed class ProcessThrottleEngine : IDisposable
         }
         finally
         {
+            // Dispose may have already closed the handle; only close if we still own it.
             var handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
             if (handle != IntPtr.Zero && handle != InvalidHandle)
             {
-                WinDivertClose(handle);
+                try
+                {
+                    WinDivertClose(handle);
+                }
+                catch
+                {
+                    // ignore
+                }
             }
         }
     }
@@ -472,26 +480,66 @@ public sealed class ProcessThrottleEngine : IDisposable
         }
 
         _disposed = true;
+        IntPtr handleToClose = IntPtr.Zero;
         lock (_lifecycleSync)
         {
-            _workerCts?.Cancel();
-            var handle = _handle;
+            try
+            {
+                _workerCts?.Cancel();
+            }
+            catch
+            {
+                // ignore
+            }
+
+            // Unblock WinDivertRecv immediately so the UI is not stuck on worker.Wait.
+            var handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
             if (handle != IntPtr.Zero && handle != InvalidHandle)
             {
-                WinDivertShutdown(handle, ShutdownBoth);
+                try
+                {
+                    WinDivertShutdown(handle, ShutdownBoth);
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                handleToClose = handle;
             }
         }
 
+        // Short wait only — never stall window close for seconds.
         try
         {
-            _worker?.Wait(TimeSpan.FromSeconds(2));
+            _worker?.Wait(TimeSpan.FromMilliseconds(250));
         }
         catch
         {
             // ignore shutdown races
         }
 
-        _workerCts?.Dispose();
+        if (handleToClose != IntPtr.Zero)
+        {
+            try
+            {
+                WinDivertClose(handleToClose);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        try
+        {
+            _workerCts?.Dispose();
+        }
+        catch
+        {
+            // ignore
+        }
+
         ClearAll();
     }
 

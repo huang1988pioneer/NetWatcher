@@ -218,22 +218,24 @@ public partial class App : Application
 
     private void DisposeServices()
     {
-        if (_mainWindow?.DataContext is IDisposable disposable)
+        if (_mainWindow?.DataContext is not IDisposable disposable)
         {
-            try
-            {
-                disposable.Dispose();
-            }
-            catch
-            {
-                // Ignore dispose failures on exit.
-            }
+            return;
+        }
 
-            // Prevent double dispose if window recreated later.
-            if (_mainWindow is not null)
-            {
-                _mainWindow.DataContext = null;
-            }
+        // Detach first so Closing/Closed handlers cannot touch a disposing VM.
+        if (_mainWindow is not null)
+        {
+            _mainWindow.DataContext = null;
+        }
+
+        try
+        {
+            disposable.Dispose();
+        }
+        catch
+        {
+            // Ignore dispose failures on exit.
         }
     }
 
