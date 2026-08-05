@@ -7,15 +7,15 @@ Windows builds include per-process traffic via ETW network events.
 
 Latest release:
 
-- [NetWatcher v1.2.9](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.9)
+- [NetWatcher v1.2.10](https://github.com/huang1988pioneer/NetWatcher/releases/tag/v1.2.10)
 
 Release assets:
 
-- `NetWatcher-v1.2.9-win-x64.zip`
-- `NetWatcher-v1.2.9-macos-arm64.zip`
-- `NetWatcher-v1.2.9-macos-x64.zip`
-- `NetWatcher-v1.2.9-linux-x64.zip`
-- `NetWatcher-v1.2.9-linux-arm64.zip`
+- `NetWatcher-v1.2.10-win-x64.zip`
+- `NetWatcher-v1.2.10-macos-arm64.zip`
+- `NetWatcher-v1.2.10-macos-x64.zip`
+- `NetWatcher-v1.2.10-linux-x64.zip`
+- `NetWatcher-v1.2.10-linux-arm64.zip`
 
 ## Features
 
@@ -83,26 +83,26 @@ dotnet build NetWatcher.App.csproj -c Release
 Publish Windows release:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.9\win-x64
-Compress-Archive -Path .\artifacts\release\v1.2.9\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.9-win-x64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\win-x64
+Compress-Archive -Path .\artifacts\release\v1.2.10\win-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-win-x64.zip -Force
 ```
 
 Publish macOS releases:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.9\macos-arm64
-dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.9\macos-x64
-Compress-Archive -Path .\artifacts\release\v1.2.9\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.9-macos-arm64.zip -Force
-Compress-Archive -Path .\artifacts\release\v1.2.9\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.9-macos-x64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\macos-arm64
+dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\macos-x64
+Compress-Archive -Path .\artifacts\release\v1.2.10\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-macos-arm64.zip -Force
+Compress-Archive -Path .\artifacts\release\v1.2.10\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-macos-x64.zip -Force
 ```
 
 Publish Linux releases:
 
 ```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.9\linux-x64
-dotnet publish NetWatcher.App.csproj -c Release -r linux-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.9\linux-arm64
-Compress-Archive -Path .\artifacts\release\v1.2.9\linux-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.9-linux-x64.zip -Force
-Compress-Archive -Path .\artifacts\release\v1.2.9\linux-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.9-linux-arm64.zip -Force
+dotnet publish NetWatcher.App.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\linux-x64
+dotnet publish NetWatcher.App.csproj -c Release -r linux-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.10\linux-arm64
+Compress-Archive -Path .\artifacts\release\v1.2.10\linux-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-linux-x64.zip -Force
+Compress-Archive -Path .\artifacts\release\v1.2.10\linux-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.10-linux-arm64.zip -Force
 ```
 
 ## Notes
