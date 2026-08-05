@@ -45,6 +45,15 @@ public sealed class ProcessTrafficViewModel : ObservableObject
 
     public IReadOnlyList<SpeedLimitOption> LimitOptions => SpeedLimitOption.Presets;
 
+    public bool IsLimitFeatureSupported => OperatingSystem.IsWindows() ||
+                                           (OperatingSystem.IsMacOS() && MacLimiterBridgeAvailable());
+
+    public string LimitFeatureToolTip => IsLimitFeatureSupported
+        ? "啟用或停用此程式的限速"
+        : "macOS 需要安裝 NetWatcher Limiter Host 與核准 Network Extension 才能限速。";
+
+    private static bool MacLimiterBridgeAvailable() => new MacLimiterBridge().IsAvailable;
+
     public string ProcessName
     {
         get => _processName;
@@ -310,6 +319,7 @@ public sealed class ProcessTrafficViewModel : ObservableObject
     }
 
     public bool HasActiveLimit =>
+        IsLimitFeatureSupported &&
         IsLimitControlEnabled &&
         (IsDownloadLimitEnabled ||
          IsUploadLimitEnabled ||
@@ -369,6 +379,14 @@ public sealed class ProcessTrafficViewModel : ObservableObject
 
     public void LoadLimitSettings(ProcessLimitSettings settings)
     {
+        if (!IsLimitFeatureSupported)
+        {
+            settings = new ProcessLimitSettings
+            {
+                IsLimitControlEnabled = false
+            };
+        }
+
         _suppressLimitEvents = true;
         try
         {
@@ -397,6 +415,8 @@ public sealed class ProcessTrafficViewModel : ObservableObject
             RaisePropertyChanged(nameof(SelectedPriority));
             RaisePropertyChanged(nameof(SelectedDownloadLimit));
             RaisePropertyChanged(nameof(SelectedUploadLimit));
+            RaisePropertyChanged(nameof(IsLimitFeatureSupported));
+            RaisePropertyChanged(nameof(LimitFeatureToolTip));
             LimitStatusText = SelectedPriority.Priority == TrafficPriority.Normal && !HasActiveLimit
                 ? "Normal"
                 : $"已載入 {SelectedPriority.Label}";
@@ -412,6 +432,14 @@ public sealed class ProcessTrafficViewModel : ObservableObject
 
     public ProcessLimitSettings ToLimitSettings()
     {
+        if (!IsLimitFeatureSupported)
+        {
+            return new ProcessLimitSettings
+            {
+                IsLimitControlEnabled = false
+            };
+        }
+
         var downloadKbps = ResolveLimitKbps(SelectedDownloadLimit, DownloadLimitMbpsText);
         var uploadKbps = ResolveLimitKbps(SelectedUploadLimit, UploadLimitMbpsText);
 

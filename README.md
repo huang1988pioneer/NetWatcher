@@ -69,7 +69,7 @@ Settings → 外觀主題:
 1. Download the zip for your platform from the latest release.
 2. Extract the zip.
 3. On Windows, run `NetWatcher.App.exe` (UAC will prompt for administrator by default).
-4. On macOS / Linux, run `chmod +x NetWatcher.App`, then start `./NetWatcher.App`.
+4. On macOS, open `NetWatcher.app`. On Linux, run `chmod +x NetWatcher.App`, then start `./NetWatcher.App`.
 5. Watch live speed cards; set per-process limits from the table (Windows).
 
 ## Development
@@ -89,11 +89,19 @@ Compress-Archive -Path .\artifacts\release\v1.2.11\win-x64\* -DestinationPath .\
 
 Publish macOS releases:
 
-```powershell
-dotnet publish NetWatcher.App.csproj -c Release -r osx-arm64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.11\macos-arm64
-dotnet publish NetWatcher.App.csproj -c Release -r osx-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\release\v1.2.11\macos-x64
-Compress-Archive -Path .\artifacts\release\v1.2.11\macos-arm64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.11-macos-arm64.zip -Force
-Compress-Archive -Path .\artifacts\release\v1.2.11\macos-x64\* -DestinationPath .\artifacts\release\NetWatcher-v1.2.11-macos-x64.zip -Force
+```bash
+./scripts/package-macos-release.sh osx-arm64 1.2.11
+./scripts/package-macos-release.sh osx-x64 1.2.11
+```
+
+The macOS package script creates a signed `NetWatcher.app` bundle.
+If a manually zipped macOS build only contains `NetWatcher.App`, run:
+
+```bash
+chmod +x NetWatcher.App
+xattr -d com.apple.quarantine NetWatcher.App 2>/dev/null || true
+codesign --force --sign - NetWatcher.App
+open NetWatcher.App
 ```
 
 Publish Linux releases:

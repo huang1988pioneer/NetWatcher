@@ -1,12 +1,15 @@
 bin/
 obj/
+artifacts/
+.DS_Store
 .vs/
 .vscode/
 .idea/
 .dotnet/
 .nuget/
-artifacts/
 exports/
+macos-limiter/.build/
+macos-limiter/.clang-cache/
 *.user
 *.suo
 *.pdb

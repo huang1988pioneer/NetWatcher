@@ -8,6 +8,7 @@ namespace NetWatcher.App;
 public sealed class NetworkMonitorService
 {
     private readonly EtwProcessMonitorService _processMonitorService = new();
+    private readonly MacProcessMonitorService _macProcessMonitorService = new();
     private readonly Dictionary<string, InterfaceCounters> _interfaceCounters = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PerformanceCounterPair> _perfCounters = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedInterfaceId;
@@ -125,10 +126,10 @@ public sealed class NetworkMonitorService
             }
         }
 
-        var processSnapshot = _processMonitorService.CollectSnapshot(intervalSeconds);
+        var processSnapshot = CaptureProcessSnapshot(intervalSeconds);
         var processStatusMessage = BuildProcessStatusMessage(processSnapshot, downloadBps, uploadBps);
 
-        // If ETW sees more traffic than NIC counters (e.g. wrong adapter selected), prefer ETW totals.
+        // If per-process sampling sees more traffic than NIC counters (e.g. wrong adapter selected), prefer it.
         var etwDownload = processSnapshot.Processes.Sum(p => p.DownloadBytesPerSecond);
         var etwUpload = processSnapshot.Processes.Sum(p => p.UploadBytesPerSecond);
         if (etwDownload > downloadBps * 1.15 || (downloadBps < 256 && etwDownload > downloadBps))
@@ -303,12 +304,37 @@ public sealed class NetworkMonitorService
             return snapshot.StatusMessage;
         }
 
+        if (OperatingSystem.IsMacOS())
+        {
+            if (downloadBps > 1024 || uploadBps > 1024)
+            {
+                return "網卡有流量，但 macOS nettop 尚未對應到程式。";
+            }
+
+            return "macOS nettop 已啟用，目前沒有偵測到單一程式流量。";
+        }
+
         if (downloadBps > 1024 || uploadBps > 1024)
         {
             return "網卡有流量，但 ETW 尚未對應到程式（可能是受保護行程 / 驅動卸載）。";
         }
 
         return "ETW 已啟用，目前沒有偵測到單一程式流量。";
+    }
+
+    private ProcessMonitorSnapshot CaptureProcessSnapshot(double intervalSeconds)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return _processMonitorService.CollectSnapshot(intervalSeconds);
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return _macProcessMonitorService.CollectSnapshot(intervalSeconds);
+        }
+
+        return new ProcessMonitorSnapshot([], "此平台尚未支援單一程式流量。", false);
     }
 
     public bool TryRestartEtw() => _processMonitorService.TryRestart();

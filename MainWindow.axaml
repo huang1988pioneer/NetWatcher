@@ -71,8 +71,9 @@
             <Border Padding="16,12" BorderBrush="{Binding PanelBorder}" BorderThickness="0,0,0,1">
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <StackPanel Spacing="2">
-                  <TextBlock FontSize="15" FontWeight="SemiBold" Text="程式限速" />
+                  <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding ProcessPanelTitle}" />
                   <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding ProcessSummaryText}" />
+                  <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding ProcessDataSourceText}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                   <TextBox Classes="ui-filter" Width="170" Watermark="搜尋程式" Text="{Binding SearchText}" />
@@ -108,14 +109,14 @@
                           <TextBlock Grid.Column="1" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#60A5FA" Text="{Binding DownloadSpeedText}" />
                           <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="Consolas, monospace" FontSize="12" Foreground="#4ADE80" Text="{Binding UploadSpeedText}" />
                           <StackPanel Grid.Column="3" Spacing="4" VerticalAlignment="Center">
-                            <ComboBox Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedDownloadLimit}" HorizontalAlignment="Stretch" IsTextSearchEnabled="False" MaxDropDownHeight="320" ToolTip.Tip="預設限速；最下方可選「自訂…」" />
-                            <TextBox Classes="ui-limit-custom" Watermark="自訂 MB/s" Text="{Binding DownloadLimitMbpsText}" ToolTip.Tip="自行輸入 MB/s，例如 3 或 0.8" />
+                            <ComboBox Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedDownloadLimit}" HorizontalAlignment="Stretch" IsTextSearchEnabled="False" MaxDropDownHeight="320" IsEnabled="{Binding IsLimitFeatureSupported}" ToolTip.Tip="{Binding LimitFeatureToolTip}" />
+                            <TextBox Classes="ui-limit-custom" Watermark="自訂 MB/s" Text="{Binding DownloadLimitMbpsText}" IsEnabled="{Binding IsLimitFeatureSupported}" ToolTip.Tip="{Binding LimitFeatureToolTip}" />
                           </StackPanel>
                           <StackPanel Grid.Column="4" Spacing="4" VerticalAlignment="Center">
-                            <ComboBox Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedUploadLimit}" HorizontalAlignment="Stretch" IsTextSearchEnabled="False" MaxDropDownHeight="320" ToolTip.Tip="預設限速；最下方可選「自訂…」" />
-                            <TextBox Classes="ui-limit-custom" Watermark="自訂 MB/s" Text="{Binding UploadLimitMbpsText}" ToolTip.Tip="自行輸入 MB/s，例如 3 或 0.8" />
+                            <ComboBox Classes="ui-limit" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding SelectedUploadLimit}" HorizontalAlignment="Stretch" IsTextSearchEnabled="False" MaxDropDownHeight="320" IsEnabled="{Binding IsLimitFeatureSupported}" ToolTip.Tip="{Binding LimitFeatureToolTip}" />
+                            <TextBox Classes="ui-limit-custom" Watermark="自訂 MB/s" Text="{Binding UploadLimitMbpsText}" IsEnabled="{Binding IsLimitFeatureSupported}" ToolTip.Tip="{Binding LimitFeatureToolTip}" />
                           </StackPanel>
-                          <ToggleSwitch Grid.Column="5" Classes="ui-switch" IsChecked="{Binding IsLimitControlEnabled}" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="啟用或停用此程式的限速" />
+                          <ToggleSwitch Grid.Column="5" Classes="ui-switch" IsChecked="{Binding IsLimitControlEnabled}" HorizontalAlignment="Center" VerticalAlignment="Center" IsEnabled="{Binding IsLimitFeatureSupported}" ToolTip.Tip="{Binding LimitFeatureToolTip}" />
                         </Grid>
                       </Border>
                     </DataTemplate>
@@ -134,7 +135,7 @@
     </ScrollViewer>
 
     <Border Grid.Row="3" Background="{Binding ChromeBackground}" BorderBrush="{Binding PanelBorder}" BorderThickness="0,1,0,0" Padding="16,8">
-      <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="限速單位：MB/s · 可選預設，或於 50 MB/s 下方「自訂…」／輸入框自行輸入（例如 3 或 0.8）" />
+      <TextBlock FontSize="11" Foreground="{Binding MutedTextBrush}" Text="{Binding LimitFooterText}" />
     </Border>
   </Grid>
 </Window>

@@ -20,9 +20,12 @@ public sealed class TrafficLimitService : IDisposable
     private readonly HashSet<string> _activePolicies = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _activeFirewallRules = new(StringComparer.OrdinalIgnoreCase);
     private readonly ProcessThrottleEngine _softThrottle = new();
+    private readonly MacLimiterBridge _macLimiterBridge = new();
     private bool _disposed;
 
     public bool IsWindowsSupported => OperatingSystem.IsWindows();
+
+    public bool IsMacSupported => _macLimiterBridge.IsAvailable;
 
     public bool IsElevated => AdminElevation.IsElevated();
 
@@ -34,13 +37,30 @@ public sealed class TrafficLimitService : IDisposable
         {
             if (!IsWindowsSupported)
             {
-                return "限速僅 Windows 可實際套用。";
+                return OperatingSystem.IsMacOS()
+                    ? _macLimiterBridge.CapabilityText
+                    : "限速僅支援 Windows 與已安裝原生 Host 的 macOS。";
             }
 
             var admin = IsElevated ? "已提權" : "未提權（封包限速/QoS 需管理員）";
             return $"{admin} · 下載/上傳：WinDivert 封包限速（目標 MB/s，允許微小誤差）· 上傳 QoS：額外輔助 · 需系統管理員。";
         }
     }
+
+    public Task<LimitApplyResult> ApplyMacPriorityAsync(
+        int processId,
+        TrafficPriority priority,
+        double downloadLimitKbps,
+        double uploadLimitKbps,
+        bool isEnabled,
+        CancellationToken cancellationToken = default) =>
+        _macLimiterBridge.ApplyAsync(
+            processId,
+            priority,
+            downloadLimitKbps,
+            uploadLimitKbps,
+            isEnabled,
+            cancellationToken);
 
     public async Task<LimitApplyResult> ApplyPriorityAsync(
         string processName,

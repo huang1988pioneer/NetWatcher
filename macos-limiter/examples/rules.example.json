@@ -1,0 +1,16 @@
+{
+  "rules" : [
+    {
+      "bundleIdentifier" : "audit:replace-with-source-app-audit-token-key",
+      "inboundBytesPerSecond" : 1048576,
+      "isEnabled" : true,
+      "outboundBytesPerSecond" : 262144
+    },
+    {
+      "bundleIdentifier" : "org.mozilla.firefox",
+      "inboundBytesPerSecond" : 524288,
+      "isEnabled" : true,
+      "outboundBytesPerSecond" : null
+    }
+  ]
+}

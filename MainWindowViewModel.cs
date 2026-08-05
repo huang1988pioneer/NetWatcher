@@ -415,6 +415,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool NeedsAdminForLimits => OperatingSystem.IsWindows() && !IsRunningAsAdmin;
 
+    public bool IsLimitFeatureSupported => OperatingSystem.IsWindows() || _trafficLimitService.IsMacSupported;
+
+    public bool IsLimitUnsupportedNoticeVisible => !IsLimitFeatureSupported;
+
+    public string ProcessPanelTitle => IsLimitFeatureSupported ? "程式限速" : "程式流量監控";
+
+    public string LimitUnsupportedNoticeText =>
+        "macOS 需要先安裝 NetWatcher Limiter Host 並核准 Network Extension，才能實際限制單一程式速度。";
+
+    public string LimitFooterText => IsLimitFeatureSupported
+        ? "限速單位：MB/s · 可選預設，或於 50 MB/s 下方「自訂…」／輸入框自行輸入（例如 3 或 0.8）"
+        : "macOS：未偵測到可用的 Limiter Host；安裝並核准 Network Extension 後可使用限速。";
+
     public string AdminStatusText => IsRunningAsAdmin
         ? "已以系統管理員執行 · 可套用上傳限速 / Block"
         : "未以系統管理員執行 · 限速無法生效（請重新啟動並提權）";
@@ -585,7 +598,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public string ProcessDataSourceText => OperatingSystem.IsWindows()
         ? "資料來源：Windows ETW 網路事件 · 約每秒更新"
-        : "單一程式流量僅支援 Windows ETW；macOS 版顯示總流量";
+        : OperatingSystem.IsMacOS()
+            ? "資料來源：macOS nettop · 可顯示程式流量，限速僅支援 Windows"
+            : "此平台顯示總流量；單一程式限速僅支援 Windows";
 
     public string IntegratedHelpText =>
         "下載/上傳限速：以 WinDivert 在封包層依程式限速（單位 MB/s，允許約數百分比誤差）。" +
@@ -981,13 +996,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             if (!settings.IsLimitControlEnabled)
             {
-                var cleared = await _trafficLimitService.ApplyPriorityAsync(
-                    process.ProcessName,
-                    process.Description,
-                    TrafficPriority.Normal,
-                    0,
-                    0,
-                    cancellationToken);
+                var cleared = OperatingSystem.IsMacOS()
+                    ? await _trafficLimitService.ApplyMacPriorityAsync(
+                        process.ProcessId,
+                        TrafficPriority.Normal,
+                        0,
+                        0,
+                        isEnabled: false,
+                        cancellationToken: cancellationToken)
+                    : await _trafficLimitService.ApplyPriorityAsync(
+                        process.ProcessName,
+                        process.Description,
+                        TrafficPriority.Normal,
+                        0,
+                        0,
+                        cancellationToken);
                 process.LimitStatusText = "已關閉控管 · " + cleared.Message;
                 LimitEngineStatusText = process.LimitStatusText;
                 return;
@@ -997,6 +1020,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 settings.DownloadLimitEnabled ||
                 settings.UploadLimitEnabled)
             {
+                if (!IsLimitFeatureSupported)
+                {
+                    process.LimitStatusText = "macOS Limiter Host 尚未就緒";
+                    LimitEngineStatusText = LimitUnsupportedNoticeText;
+                    return;
+                }
+
                 var priority = process.SelectedPriority.Priority;
                 if (priority == TrafficPriority.Normal &&
                     (settings.DownloadLimitEnabled || settings.UploadLimitEnabled))
@@ -1004,17 +1034,27 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     priority = TrafficPriority.Limit;
                 }
 
-                var result = await _trafficLimitService.ApplyPriorityAsync(
-                    process.ProcessName,
-                    process.Description,
-                    priority,
-                    settings.DownloadLimitEnabled || priority is TrafficPriority.Limit or TrafficPriority.Low
-                        ? settings.DownloadLimitKbps
-                        : 0,
-                    settings.UploadLimitEnabled || priority is TrafficPriority.Limit or TrafficPriority.Low
-                        ? settings.UploadLimitKbps
-                        : 0,
-                    cancellationToken);
+                var downloadLimit = settings.DownloadLimitEnabled || priority is TrafficPriority.Limit or TrafficPriority.Low
+                    ? settings.DownloadLimitKbps
+                    : 0;
+                var uploadLimit = settings.UploadLimitEnabled || priority is TrafficPriority.Limit or TrafficPriority.Low
+                    ? settings.UploadLimitKbps
+                    : 0;
+                var result = OperatingSystem.IsMacOS()
+                    ? await _trafficLimitService.ApplyMacPriorityAsync(
+                        process.ProcessId,
+                        priority,
+                        downloadLimit,
+                        uploadLimit,
+                        settings.IsLimitControlEnabled,
+                        cancellationToken)
+                    : await _trafficLimitService.ApplyPriorityAsync(
+                        process.ProcessName,
+                        process.Description,
+                        priority,
+                        downloadLimit,
+                        uploadLimit,
+                        cancellationToken);
 
                 process.LimitStatusText = result.Success
                     ? result.Message
@@ -1023,13 +1063,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
             else
             {
-                var clear = await _trafficLimitService.ApplyPriorityAsync(
-                    process.ProcessName,
-                    process.Description,
-                    TrafficPriority.Normal,
-                    0,
-                    0,
-                    cancellationToken);
+                var clear = OperatingSystem.IsMacOS()
+                    ? await _trafficLimitService.ApplyMacPriorityAsync(
+                        process.ProcessId,
+                        TrafficPriority.Normal,
+                        0,
+                        0,
+                        isEnabled: false,
+                        cancellationToken: cancellationToken)
+                    : await _trafficLimitService.ApplyPriorityAsync(
+                        process.ProcessName,
+                        process.Description,
+                        TrafficPriority.Normal,
+                        0,
+                        0,
+                        cancellationToken);
                 process.LimitStatusText = clear.Message;
                 LimitEngineStatusText = clear.Message;
             }

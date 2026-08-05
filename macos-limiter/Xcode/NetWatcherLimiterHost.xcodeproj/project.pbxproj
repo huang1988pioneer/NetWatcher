@@ -1,0 +1,85 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* main.swift */; };
+		A10000000000000000000002 /* FilterDataProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* FilterDataProvider.swift */; };
+		A10000000000000000000003 /* FlowAppIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* FlowAppIdentity.swift */; };
+		A10000000000000000000004 /* NetWatcherFilter.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* NetWatcherFilter.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000010 /* LimitDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* LimitDirection.swift */; };
+		A10000000000000000000011 /* LimitRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* LimitRule.swift */; };
+		A10000000000000000000012 /* RuleSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* RuleSet.swift */; };
+		A10000000000000000000013 /* RuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* RuleStore.swift */; };
+		A10000000000000000000014 /* TokenBucket.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* TokenBucket.swift */; };
+		A10000000000000000000015 /* FlowLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* FlowLimiter.swift */; };
+		A10000000000000000000016 /* LimiterPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* LimiterPaths.swift */; };
+		A10000000000000000000020 /* FilterConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* FilterConfigurationManager.swift */; };
+		A10000000000000000000021 /* RuleWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* RuleWriter.swift */; };
+		A10000000000000000000022 /* LimiterControlProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* LimiterControlProtocol.swift */; };
+		A10000000000000000000023 /* LimiterControlHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* LimiterControlHandler.swift */; };
+/* End PBXBuildFile section */
+/* Begin PBXCopyFilesBuildPhase section */
+		A30000000000000000000001 /* Embed App Extensions */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (A10000000000000000000004 /* NetWatcherFilter.appex in Embed App Extensions */, ); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Host/main.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000002 /* FilterDataProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherFilterExtension/FilterDataProvider.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000003 /* FlowAppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherFilterExtension/FlowAppIdentity.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000004 /* NetWatcherFilter.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; path = NetWatcherFilter.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000005 /* NetWatcherLimiterHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = NetWatcherLimiterHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000010 /* LimitDirection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterCore/LimitDirection.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000011 /* LimitRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterCore/LimitRule.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000012 /* RuleSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterCore/RuleSet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000013 /* RuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterCore/RuleStore.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000014 /* TokenBucket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterCore/TokenBucket.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000015 /* FlowLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterCore/FlowLimiter.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000016 /* LimiterPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterCore/LimiterPaths.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000020 /* FilterConfigurationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterHostSupport/FilterConfigurationManager.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000021 /* RuleWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterHostSupport/RuleWriter.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000022 /* LimiterControlProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterHostSupport/LimiterControlProtocol.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000023 /* LimiterControlHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Sources/NetWatcherLimiterHostSupport/LimiterControlHandler.swift; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {isa = PBXGroup; children = (A40000000000000000000002 /* Sources */, A40000000000000000000003 /* Products */, ); sourceTree = "<group>"; };
+		A40000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (A20000000000000000000001, A20000000000000000000002, A20000000000000000000003, A20000000000000000000010, A20000000000000000000011, A20000000000000000000012, A20000000000000000000013, A20000000000000000000014, A20000000000000000000015, A20000000000000000000016, A20000000000000000000020, A20000000000000000000021, A20000000000000000000022, A20000000000000000000023, ); name = Sources; sourceTree = "<group>"; };
+		A40000000000000000000003 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000005, A20000000000000000000004, ); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* NetWatcherLimiterHost */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000001; buildPhases = (A70000000000000000000001, A30000000000000000000001, ); buildRules = (); dependencies = (A80000000000000000000001, ); name = NetWatcherLimiterHost; productName = NetWatcherLimiterHost; productReference = A20000000000000000000005; productType = "com.apple.product-type.application"; };
+		A50000000000000000000002 /* NetWatcherFilter */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000002; buildPhases = (A70000000000000000000002, ); buildRules = (); dependencies = (); name = NetWatcherFilter; productName = NetWatcherFilter; productReference = A20000000000000000000004; productType = "com.apple.product-type.app-extension"; };
+/* End PBXNativeTarget section */
+/* Begin PBXProject section */
+		A90000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = { LastUpgradeCheck = 2620; TargetAttributes = { A50000000000000000000001 = {CreatedOnToolsVersion = 26.2;}; A50000000000000000000002 = {CreatedOnToolsVersion = 26.2;}; }; }; buildConfigurationList = A60000000000000000000003; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base, ); mainGroup = A40000000000000000000001; productRefGroup = A40000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (A50000000000000000000001, A50000000000000000000002, ); };
+/* End PBXProject section */
+/* Begin PBXShellScriptBuildPhase section */
+/* End PBXShellScriptBuildPhase section */
+/* Begin PBXSourcesBuildPhase section */
+		A70000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000010, A10000000000000000000011, A10000000000000000000012, A10000000000000000000013, A10000000000000000000014, A10000000000000000000015, A10000000000000000000016, A10000000000000000000020, A10000000000000000000021, A10000000000000000000022, A10000000000000000000023, ); runOnlyForDeploymentPostprocessing = 0; };
+		A70000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000002, A10000000000000000000003, A10000000000000000000010, A10000000000000000000011, A10000000000000000000012, A10000000000000000000013, A10000000000000000000014, A10000000000000000000015, A10000000000000000000016, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+/* Begin PBXTargetDependency section */
+		A80000000000000000000001 = {isa = PBXTargetDependency; target = A50000000000000000000002; targetProxy = A80000000000000000000002; };
+/* End PBXTargetDependency section */
+/* Begin PBXContainerItemProxy section */
+		A80000000000000000000002 = {isa = PBXContainerItemProxy; containerPortal = A90000000000000000000001; proxyType = 1; remoteGlobalIDString = A50000000000000000000002; remoteInfo = NetWatcherFilter; };
+/* End PBXContainerItemProxy section */
+/* Begin XCBuildConfiguration section */
+		A61000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = ../Entitlements/NetWatcherLimiterHost.entitlements; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = Host/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.huang1988pioneer.netwatcher.limiter; PRODUCT_NAME = NetWatcherLimiterHost; SWIFT_VERSION = 6.0; }; name = Debug; };
+		A61000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = ../Entitlements/NetWatcherLimiterHost.entitlements; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = Host/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.huang1988pioneer.netwatcher.limiter; PRODUCT_NAME = NetWatcherLimiterHost; SWIFT_VERSION = 6.0; }; name = Release; };
+		A62000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = ../Entitlements/NetWatcherFilterExtension.entitlements; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = Filter/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.huang1988pioneer.netwatcher.limiter.filter; PRODUCT_NAME = NetWatcherFilter; SWIFT_VERSION = 6.0; }; name = Debug; };
+		A62000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = ../Entitlements/NetWatcherFilterExtension.entitlements; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = Filter/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.huang1988pioneer.netwatcher.limiter.filter; PRODUCT_NAME = NetWatcherFilter; SWIFT_VERSION = 6.0; }; name = Release; };
+		A63000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = { MACOSX_DEPLOYMENT_TARGET = 15.0; }; name = Debug; };
+		A63000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = { MACOSX_DEPLOYMENT_TARGET = 15.0; }; name = Release; };
+/* End XCBuildConfiguration section */
+/* Begin XCConfigurationList section */
+		A60000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (A61000000000000000000001, A61000000000000000000002, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A60000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (A62000000000000000000001, A62000000000000000000002, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A60000000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (A63000000000000000000001, A63000000000000000000002, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A90000000000000000000001 /* Project object */;
+}
